@@ -1,0 +1,5 @@
+{
+  "name": "Penguin Elevator",
+  "description": "An isometric stealth puzzle game where you manage a rising elevator of penguins. Secretly drop penguins through trapdoors without being seen by others to reach the highest floor.",
+  "requestFramePermissions": []
+}
