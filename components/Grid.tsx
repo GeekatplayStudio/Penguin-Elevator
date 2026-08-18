@@ -108,11 +108,7 @@ const SquareTile: React.FC<SquareTileProps> = ({
 
   return (
     <div
-      className="absolute cursor-pointer group select-none touch-manipulation transition-transform duration-100"
-      onClick={(e) => {
-         e.stopPropagation();
-         onClick();
-      }}
+      className="absolute select-none touch-manipulation transition-transform duration-100"
       style={{
         left: `calc(50% + ${pos.left}px)`,
         top: `calc(50% + ${pos.top - 80}px)`, // Centered vertically in layout
@@ -120,12 +116,16 @@ const SquareTile: React.FC<SquareTileProps> = ({
         height: TILE_HEIGHT + TILE_SLAB_DEPTH + 40,
         transform: 'translate(-50%, -50%)',
         zIndex: zIndex,
+        pointerEvents: 'none', // the div's rectangular box must never steal clicks meant for a neighboring tile
       }}
     >
-      {/* ISOMETRIC TILE SVG */}
+      {/* ISOMETRIC TILE SVG - pointer events are re-enabled only on the actual
+          painted shapes below, so hit-testing follows the diamond/slab
+          outline instead of this element's bounding rectangle. */}
       <svg
         viewBox={`0 0 ${TILE_WIDTH} ${TILE_HEIGHT + TILE_SLAB_DEPTH}`}
         className="w-full h-full overflow-visible drop-shadow-[0_10px_14px_rgba(0,0,0,0.75)]"
+        style={{ pointerEvents: 'auto' }}
       >
         <defs>
           <radialGradient id={holeGradId} cx="50%" cy="35%" r="75%">
@@ -135,78 +135,80 @@ const SquareTile: React.FC<SquareTileProps> = ({
           </radialGradient>
         </defs>
 
-        {/* 1. LEFT 3D SLAB WALL */}
-        <path
-          d={`M 0 ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT} L ${TILE_WIDTH / 2} ${TILE_HEIGHT + TILE_SLAB_DEPTH} L 0 ${TILE_HEIGHT / 2 + TILE_SLAB_DEPTH} Z`}
-          fill={leftColor}
-        />
+        {/* Everything below is the actual clickable tile - click hits only
+            register within these painted shapes, so overlapping tiles never
+            block each other and clicking the platform (top face or the two
+            side walls) always works. */}
+        <g
+          className="group cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          {/* 1. LEFT 3D SLAB WALL */}
+          <path
+            d={`M 0 ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT} L ${TILE_WIDTH / 2} ${TILE_HEIGHT + TILE_SLAB_DEPTH} L 0 ${TILE_HEIGHT / 2 + TILE_SLAB_DEPTH} Z`}
+            fill={leftColor}
+          />
 
-        {/* 2. RIGHT 3D SLAB WALL */}
-        <path
-          d={`M ${TILE_WIDTH / 2} ${TILE_HEIGHT} L ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH} ${TILE_HEIGHT / 2 + TILE_SLAB_DEPTH} L ${TILE_WIDTH / 2} ${TILE_HEIGHT + TILE_SLAB_DEPTH} Z`}
-          fill={rightColor}
-        />
+          {/* 2. RIGHT 3D SLAB WALL */}
+          <path
+            d={`M ${TILE_WIDTH / 2} ${TILE_HEIGHT} L ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH} ${TILE_HEIGHT / 2 + TILE_SLAB_DEPTH} L ${TILE_WIDTH / 2} ${TILE_HEIGHT + TILE_SLAB_DEPTH} Z`}
+            fill={rightColor}
+          />
 
-        {/* 3. TRAPDOOR / TOP TILE SURFACE */}
-        {!isOpen ? (
-          <g>
-            {/* Top Surface Diamond */}
-            <path
-              d={`M ${TILE_WIDTH / 2} 0 L ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT} L 0 ${TILE_HEIGHT / 2} Z`}
-              fill={topColor}
-              className="group-hover:brightness-110 transition-all"
-            />
-
-            {/* Each stud gets its own lit top face so the tile reads as a
-                block of 3D cubes rather than a flat painted diamond. */}
-            {studFaces.map((d, i) => (
-              <path key={i} d={d.path} fill={d.fill} />
-            ))}
-
-            {/* Cube seams between studs */}
-            <path d={seams.join(' ')} stroke={seamColor} strokeWidth="1.1" fill="none" strokeLinecap="round" />
-
-            {/* MONITORED INDICATOR - a slim outline only, so the tile stays readable */}
-            {isMonitored && (
+          {/* 3. TRAPDOOR / TOP TILE SURFACE */}
+          {!isOpen ? (
+            <g>
+              {/* Top Surface Diamond */}
               <path
-                d={`M ${TILE_WIDTH / 2} 1.5 L ${TILE_WIDTH - 1.5} ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT - 1.5} L 1.5 ${TILE_HEIGHT / 2} Z`}
-                fill="none"
-                stroke="#f87171"
-                strokeWidth="2"
-                opacity="0.85"
-                className="animate-pulse"
+                d={`M ${TILE_WIDTH / 2} 0 L ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT} L 0 ${TILE_HEIGHT / 2} Z`}
+                fill={topColor}
+                className="group-hover:brightness-110 transition-all"
               />
-            )}
-          </g>
-        ) : (
-          /* OPEN TRAPDOOR ABYSS HOLE */
-          <g>
-            {/* Dark Abyss Hole */}
-            <path
-              d={`M ${TILE_WIDTH / 2} 0 L ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT} L 0 ${TILE_HEIGHT / 2} Z`}
-              fill={`url(#${holeGradId})`}
-              stroke="#0f172a"
-              strokeWidth="2"
-            />
-            {/* Glowing inner abyss effect */}
-            <ellipse cx={TILE_WIDTH / 2} cy={TILE_HEIGHT / 2} rx="20" ry="10" fill="#38bdf8" opacity="0.3" className="animate-ping" />
-            <ellipse cx={TILE_WIDTH / 2} cy={TILE_HEIGHT / 2} rx="10" ry="5" fill="#7dd3fc" opacity="0.5" />
 
-            {/* Left Opened Trapdoor Leaf */}
-            <path
-              d={`M 0 ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 4} ${TILE_HEIGHT / 4} L ${TILE_WIDTH / 4 - 8} ${TILE_HEIGHT / 2} Z`}
-              fill="#475569"
-              stroke="#0f172a"
-            />
+              {/* Each stud gets its own lit top face so the tile reads as a
+                  block of 3D cubes rather than a flat painted diamond. */}
+              {studFaces.map((d, i) => (
+                <path key={i} d={d.path} fill={d.fill} />
+              ))}
 
-            {/* Right Opened Trapdoor Leaf */}
-            <path
-              d={`M ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH * 0.75} ${TILE_HEIGHT * 0.75} L ${TILE_WIDTH * 0.75 + 8} ${TILE_HEIGHT / 2} Z`}
-              fill="#475569"
-              stroke="#0f172a"
-            />
-          </g>
-        )}
+              {/* Cube seams between studs */}
+              <path d={seams.join(' ')} stroke={seamColor} strokeWidth="1.1" fill="none" strokeLinecap="round" />
+
+
+            </g>
+          ) : (
+            /* OPEN TRAPDOOR ABYSS HOLE */
+            <g>
+              {/* Dark Abyss Hole */}
+              <path
+                d={`M ${TILE_WIDTH / 2} 0 L ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 2} ${TILE_HEIGHT} L 0 ${TILE_HEIGHT / 2} Z`}
+                fill={`url(#${holeGradId})`}
+                stroke="#0f172a"
+                strokeWidth="2"
+              />
+              {/* Glowing inner abyss effect */}
+              <ellipse cx={TILE_WIDTH / 2} cy={TILE_HEIGHT / 2} rx="20" ry="10" fill="#38bdf8" opacity="0.3" className="animate-ping" />
+              <ellipse cx={TILE_WIDTH / 2} cy={TILE_HEIGHT / 2} rx="10" ry="5" fill="#7dd3fc" opacity="0.5" />
+
+              {/* Left Opened Trapdoor Leaf */}
+              <path
+                d={`M 0 ${TILE_HEIGHT / 2} L ${TILE_WIDTH / 4} ${TILE_HEIGHT / 4} L ${TILE_WIDTH / 4 - 8} ${TILE_HEIGHT / 2} Z`}
+                fill="#475569"
+                stroke="#0f172a"
+              />
+
+              {/* Right Opened Trapdoor Leaf */}
+              <path
+                d={`M ${TILE_WIDTH} ${TILE_HEIGHT / 2} L ${TILE_WIDTH * 0.75} ${TILE_HEIGHT * 0.75} L ${TILE_WIDTH * 0.75 + 8} ${TILE_HEIGHT / 2} Z`}
+                fill="#475569"
+                stroke="#0f172a"
+              />
+            </g>
+          )}
+        </g>
       </svg>
 
       {/* CHILDREN (PENGUIN / FISH ITEM) - anchored so feet rest on the tile's top face, not its center */}

@@ -113,16 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
           {isMuted ? <VolumeX size={18} className="text-[#e2483d]" /> : <Volume2 size={18} className="text-[#efece2]" />}
         </motion.button>
 
-        {/* Vision Lines Toggle */}
-        <motion.button
-          onClick={onToggleVision}
-          className={`p-2 rounded-xl border-b-2 transition-all ${showVisionCones ? 'bg-[#f2901f] text-[#232a4a] border-[#c26a10]' : 'bg-[#24406b] hover:bg-[#2d4d80] text-[#8fa2c0] border-[#16294a]'}`}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title="Toggle Vision Lines"
-        >
-          {showVisionCones ? <Eye size={18} /> : <EyeOff size={18} />}
-        </motion.button>
+
 
         {/* PC Simulator / Fullscreen View Switcher */}
         <motion.button

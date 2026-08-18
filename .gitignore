@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Reference & scratch assets (not committed)
+reference/
+reference/*
+scratch/
+scratch/*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

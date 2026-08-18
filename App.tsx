@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { GameState, Penguin, FloatingScore } from './types';
 import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR } from './constants';
-import { getRandomDirection, checkDropSafety, rotatePenguin, findEmptyCell, getMonitoredCells, getRandomPenguinType } from './utils/gameLogic';
+import { getRandomDirection, checkDropSafety, rotatePenguin, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime } from './utils/gameLogic';
 import { audioManager } from './utils/audio'; 
 import { Grid } from './components/Grid';
 import { ElevatorShaft } from './components/ElevatorShaft';
@@ -106,7 +106,7 @@ function App() {
           y,
           direction: getRandomDirection(),
           type: getRandomPenguinType(),
-          appearanceVariant: Math.floor(Math.random() * 3)
+          appearanceVariant: Math.floor(Math.random() * 4)
         });
       }
     }
@@ -173,7 +173,7 @@ function App() {
                 y: emptyPos.y,
                 direction: getRandomDirection(),
                 type: getRandomPenguinType(),
-                appearanceVariant: Math.floor(Math.random() * 3)
+                appearanceVariant: Math.floor(Math.random() * 4)
               });
               added = true;
           }
@@ -185,6 +185,8 @@ function App() {
 
     if (gameOver) return;
 
+    const boardingTime = getBoardingTime(gameState.floor);
+
     timerRef.current = setTimeout(() => {
         setGameState(prev => {
            if (prev.phase !== 'PLAYING') return prev; 
@@ -194,10 +196,13 @@ function App() {
         setTimeout(() => {
             handleMoving();
         }, TIMING.DOOR_ANIMATION);
-    }, TIMING.BOARDING_TIME);
+    }, boardingTime);
   };
 
   const handleMoving = () => {
+    const moveTime = getMoveTime(gameState.floor);
+    const rotationEventTime = Math.floor(moveTime * 0.45);
+
     setGameState(prev => {
         if (prev.phase !== 'PLAYING') return prev;
         return { ...prev, elevatorState: 'MOVING' };
@@ -210,11 +215,11 @@ function App() {
           ...prev,
           penguins: prev.penguins.map(p => ({
             ...p,
-            direction: rotatePenguin(p.direction, p.type)
+            direction: rotatePenguin(p.direction, p.type, prev.floor)
           }))
         };
       });
-    }, TIMING.ROTATION_EVENT);
+    }, rotationEventTime);
 
     setTimeout(() => {
       setGameState(prev => {
@@ -227,7 +232,7 @@ function App() {
          };
       });
       startFloorCycle();
-    }, TIMING.MOVE_TIME);
+    }, moveTime);
   };
 
   const triggerFishTreat = (x: number = 1, y: number = 1) => {
@@ -302,7 +307,7 @@ function App() {
         witnessIds: witnesses,
         penguins: prev.penguins.map(p => {
             if (p.id === id) return { ...p, isFalling: true }; 
-            return { ...p, isPanic: true }; 
+            return { ...p, isPanic: witnesses.includes(p.id) }; 
         })
       }));
       
