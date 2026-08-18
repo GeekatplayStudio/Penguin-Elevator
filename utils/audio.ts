@@ -202,24 +202,26 @@ class AudioController {
     if (!this.ctx || !this.masterGain || this.muted) return;
 
     const t = this.ctx.currentTime;
-    [0, -18, 14].forEach((detune, i) => {
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
+    [0, 0.25, 0.50, 0.75].forEach((delay) => {
+      [0, -18, 14].forEach((detune, i) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
 
-      osc.type = 'sawtooth';
-      osc.detune.value = detune;
-      osc.frequency.setValueAtTime(700, t);
-      osc.frequency.exponentialRampToValueAtTime(1400, t + 0.12);
-      osc.frequency.exponentialRampToValueAtTime(900, t + 0.3);
+        osc.type = 'sawtooth';
+        osc.detune.value = detune;
+        osc.frequency.setValueAtTime(800, t + delay);
+        osc.frequency.exponentialRampToValueAtTime(1500, t + delay + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(600, t + delay + 0.22);
 
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(i === 0 ? 0.22 : 0.12, t + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        gain.gain.setValueAtTime(0.0001, t + delay);
+        gain.gain.exponentialRampToValueAtTime(i === 0 ? 0.35 : 0.18, t + delay + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.22);
 
-      osc.connect(gain);
-      gain.connect(this.masterGain!);
-      osc.start(t);
-      osc.stop(t + 0.45);
+        osc.connect(gain);
+        gain.connect(this.masterGain!);
+        osc.start(t + delay);
+        osc.stop(t + delay + 0.22);
+      });
     });
   }
 

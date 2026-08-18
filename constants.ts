@@ -23,7 +23,7 @@ export const TIMING = {
   MOVE_TIME: 3500,        // Duration of elevator moving to next floor
   ROTATION_EVENT: 1500,   // When during move phase penguins rotate
   DROP_ANIMATION: 500,    // Time for penguin to fall through trapdoor
-  PANIC_DELAY: 1200,      // Time before game over screen after panic
+  PANIC_DELAY: 2600,      // Time for multi-jump screaming before game over screen
   FISH_DISTRACTION: 3500, // How long penguins stay distracted by fish
   FISH_COOLDOWN: 12000,   // Cooldown between fish treat uses
 };
