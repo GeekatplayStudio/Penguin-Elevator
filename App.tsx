@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { GameState, Penguin, ElevatorState, GamePhase } from './types';
-import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR, PENALTY_FULL_ELEVATOR, MIN_SCORE_THRESHOLD, DEBUG_MODE } from './constants';
-import { getRandomDirection, checkDropSafety, rotatePenguin, findEmptyCell, getMonitoredCells } from './utils/gameLogic';
+import { GameState, Penguin, FloatingScore } from './types';
+import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR } from './constants';
+import { getRandomDirection, checkDropSafety, rotatePenguin, findEmptyCell, getMonitoredCells, getRandomPenguinType } from './utils/gameLogic';
 import { audioManager } from './utils/audio'; 
 import { Grid } from './components/Grid';
 import { ElevatorShaft } from './components/ElevatorShaft';
-import { Header, GameOverScreen, StartScreen } from './components/UI';
+import { Header, GameOverScreen, StartScreen, MobileControls, MobileSimulatorFrame } from './components/UI';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const INITIAL_PENGUINS_COUNT = 4;
+const INITIAL_PENGUINS_COUNT = Math.floor((GRID_SIZE * GRID_SIZE) / 2); // Half the floor starts occupied
 
 function App() {
   const [gameState, setGameState] = useState<GameState>({
@@ -21,10 +21,22 @@ function App() {
     penguins: [],
     lastDroppedId: null,
     witnessIds: [],
+    combo: 0,
+    fishTreat: null,
+    fishCooldownRemaining: 1, // 1 = fully ready
+    showVisionCones: false,
+    isMuted: false,
+    viewMode: 'MOBILE_SIM',
   });
 
-  const monitoredCells = DEBUG_MODE ? getMonitoredCells(gameState.penguins) : undefined;
+  const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
 
+  const monitoredCells = getMonitoredCells(gameState.penguins, gameState.fishTreat);
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load High Score
   useEffect(() => {
     const saved = localStorage.getItem('penguin-elevator-hs');
     if (saved) {
@@ -32,9 +44,53 @@ function App() {
     }
   }, []);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Web Audio Touch Unlock - also kicks off ambient background music on the first gesture
+  const musicStartedRef = useRef(false);
+  useEffect(() => {
+    const handleGesture = () => {
+      audioManager.unlock();
+      if (!musicStartedRef.current) {
+        musicStartedRef.current = true;
+        audioManager.playMusic();
+      }
+    };
+    window.addEventListener('click', handleGesture);
+    window.addEventListener('touchstart', handleGesture);
+    return () => {
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+    };
+  }, []);
+
+  // Fish Treat Cooldown Timer Tick
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (gameState.fishCooldownRemaining < 1) {
+      interval = setInterval(() => {
+        setGameState(prev => {
+          const next = Math.min(1, prev.fishCooldownRemaining + 0.08);
+          return { ...prev, fishCooldownRemaining: next };
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [gameState.fishCooldownRemaining]);
+
+  const handleToggleMute = () => {
+    const muted = audioManager.toggleMute();
+    setGameState(prev => ({ ...prev, isMuted: muted }));
+  };
+
+  const addFloatingScore = (x: number, y: number, text: string, color: string = '#F59E0B') => {
+    const id = uuidv4();
+    setFloatingScores(prev => [...prev, { id, x, y, text, color }]);
+    setTimeout(() => {
+      setFloatingScores(prev => prev.filter(item => item.id !== id));
+    }, 900);
+  };
 
   const startGame = () => {
+    audioManager.unlock();
     const newPenguins: Penguin[] = [];
     const usedPositions = new Set<string>();
 
@@ -49,7 +105,8 @@ function App() {
           x,
           y,
           direction: getRandomDirection(),
-          appearanceVariant: Math.floor(Math.random() * 4)
+          type: getRandomPenguinType(),
+          appearanceVariant: Math.floor(Math.random() * 3)
         });
       }
     }
@@ -63,7 +120,10 @@ function App() {
       penguins: newPenguins,
       lastDroppedId: null,
       witnessIds: [],
-      gameOverReason: undefined
+      gameOverReason: undefined,
+      combo: 0,
+      fishTreat: null,
+      fishCooldownRemaining: 1
     }));
     
     audioManager.playMusic();
@@ -72,7 +132,8 @@ function App() {
 
   const startFloorCycle = () => {
     timerRef.current = setTimeout(() => {
-      setGameState(prev => ({ ...prev, elevatorState: 'BOARDING' }));
+      audioManager.playChime();
+      setGameState(prev => ({ ...prev, elevatorState: 'BOARDING', combo: 0 }));
       handleBoarding();
     }, TIMING.STOP_DELAY);
   };
@@ -84,22 +145,18 @@ function App() {
       if (prev.phase !== 'PLAYING') return prev;
 
       if (prev.penguins.length >= MAX_CAPACITY) {
-         const newScore = prev.score - PENALTY_FULL_ELEVATOR;
-         if (newScore <= MIN_SCORE_THRESHOLD) {
-             gameOver = true;
-             audioManager.stopMusic();
-             audioManager.playPanic();
-             const newHigh = Math.max(newScore, prev.highScore);
-             localStorage.setItem('penguin-elevator-hs', newHigh.toString());
-             return {
-                 ...prev,
-                 score: newScore,
-                 phase: 'GAME_OVER',
-                 gameOverReason: 'BANKRUPT',
-                 highScore: newHigh
-             };
-         }
-         return { ...prev, score: newScore };
+         // The floor is completely full - no room for anyone else. Instant game over.
+         gameOver = true;
+         audioManager.playGameOverMusic();
+         audioManager.playPanic();
+         const newHigh = Math.max(prev.score, prev.highScore);
+         localStorage.setItem('penguin-elevator-hs', newHigh.toString());
+         return {
+             ...prev,
+             phase: 'GAME_OVER',
+             gameOverReason: 'BANKRUPT',
+             highScore: newHigh
+         };
       }
 
       const numToAdd = prev.penguins.length === 0 ? 3 : 1;
@@ -115,7 +172,8 @@ function App() {
                 x: emptyPos.x,
                 y: emptyPos.y,
                 direction: getRandomDirection(),
-                appearanceVariant: Math.floor(Math.random() * 4)
+                type: getRandomPenguinType(),
+                appearanceVariant: Math.floor(Math.random() * 3)
               });
               added = true;
           }
@@ -152,7 +210,7 @@ function App() {
           ...prev,
           penguins: prev.penguins.map(p => ({
             ...p,
-            direction: rotatePenguin(p.direction)
+            direction: rotatePenguin(p.direction, p.type)
           }))
         };
       });
@@ -172,26 +230,58 @@ function App() {
     }, TIMING.MOVE_TIME);
   };
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      audioManager.stopMusic();
-    };
-  }, []);
+  const triggerFishTreat = (x: number = 1, y: number = 1) => {
+    if (gameState.fishCooldownRemaining < 1 || (gameState.fishTreat && gameState.fishTreat.active)) return;
+
+    audioManager.playSplash();
+    setGameState(prev => ({
+      ...prev,
+      fishTreat: { x, y, active: true },
+      fishCooldownRemaining: 0
+    }));
+
+    if (fishTimerRef.current) clearTimeout(fishTimerRef.current);
+    fishTimerRef.current = setTimeout(() => {
+      setGameState(prev => ({
+        ...prev,
+        fishTreat: prev.fishTreat ? { ...prev.fishTreat, active: false } : null
+      }));
+    }, TIMING.FISH_DISTRACTION);
+  };
 
   const handleDrop = useCallback((id: string) => {
     if (gameState.phase !== 'PLAYING') return;
 
     audioManager.playTrapdoor();
 
-    const { safe, witnesses } = checkDropSafety(id, gameState.penguins);
+    const targetPenguin = gameState.penguins.find(p => p.id === id);
+    if (!targetPenguin) return;
+
+    const { safe, witnesses } = checkDropSafety(id, gameState.penguins, gameState.fishTreat);
 
     if (safe) {
-      audioManager.playFall();
+      audioManager.playDropOooh();
+
+      const newCombo = gameState.combo + 1;
+      const basePoints = targetPenguin.type === 'VIP' ? 10 : 5;
+      const totalPoints = basePoints * Math.min(newCombo, 4);
+
+      if (newCombo > 1) {
+        audioManager.playCombo();
+      }
+
+      addFloatingScore(
+        targetPenguin.x, 
+        targetPenguin.y, 
+        newCombo > 1 ? `+${totalPoints} (${newCombo}x!)` : `+${totalPoints}`,
+        targetPenguin.type === 'VIP' ? '#F59E0B' : '#38BDF8'
+      );
+
       setGameState(prev => ({
         ...prev,
         penguins: prev.penguins.map(p => p.id === id ? { ...p, isFalling: true } : p),
-        score: prev.score + 5,
+        score: prev.score + totalPoints,
+        combo: newCombo,
         lastDroppedId: id
       }));
 
@@ -205,14 +295,13 @@ function App() {
 
     } else {
       audioManager.stopMusic();
-      audioManager.playPanic();
+      audioManager.playScream();
 
       setGameState(prev => ({
         ...prev,
         witnessIds: witnesses,
         penguins: prev.penguins.map(p => {
             if (p.id === id) return { ...p, isFalling: true }; 
-            if (witnesses.includes(p.id)) return { ...p, isPanic: true }; 
             return { ...p, isPanic: true }; 
         })
       }));
@@ -232,51 +321,111 @@ function App() {
         });
       }, TIMING.PANIC_DELAY);
     }
-  }, [gameState.penguins, gameState.phase]);
+  }, [gameState.penguins, gameState.phase, gameState.fishTreat, gameState.combo]);
+
+  // Keyboard Shortcuts Handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        if (gameState.phase === 'START_MENU' || gameState.phase === 'GAME_OVER') {
+          startGame();
+        }
+      }
+      if (e.code === 'KeyF' && gameState.phase === 'PLAYING') {
+        triggerFishTreat();
+      }
+      if (e.code === 'KeyV' && gameState.phase === 'PLAYING') {
+        setGameState(prev => ({ ...prev, showVisionCones: !prev.showVisionCones }));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState.phase]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (fishTimerRef.current) clearTimeout(fishTimerRef.current);
+      audioManager.stopMusic();
+    };
+  }, []);
 
   return (
-    <div className="relative w-full h-screen bg-slate-900 overflow-hidden font-sans select-none">
-      <ElevatorShaft elevatorState={gameState.elevatorState} floor={gameState.floor} />
+    <MobileSimulatorFrame isEnabled={gameState.viewMode === 'MOBILE_SIM'}>
+      <div className="relative w-full h-full bg-slate-950 overflow-hidden font-sans select-none flex flex-col justify-between">
+        <ElevatorShaft elevatorState={gameState.elevatorState} floor={gameState.floor} />
 
-      <AnimatePresence>
-        {gameState.phase === 'START_MENU' && (
-          <StartScreen key="start" onStart={startGame} highScore={gameState.highScore} />
-        )}
+        <AnimatePresence>
+          {gameState.phase === 'START_MENU' && (
+            <StartScreen
+              key="start"
+              onStart={startGame}
+              highScore={gameState.highScore}
+              isMuted={gameState.isMuted}
+              onToggleMute={handleToggleMute}
+            />
+          )}
 
-        {gameState.phase === 'PLAYING' && (
-          <motion.div 
-            key="game"
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            className="w-full h-full flex flex-col items-center justify-center relative z-0"
-          >
-            <Header floor={gameState.floor} score={gameState.score} />
-            <div className="flex-1 w-full flex items-center justify-center">
-               <Grid gameState={gameState} onDrop={handleDrop} monitoredCells={monitoredCells} />
-            </div>
-            <div className="absolute bottom-8 text-slate-400 text-sm font-medium bg-slate-800/80 px-4 py-2 rounded-full backdrop-blur-sm border border-slate-700/50">
-              {DEBUG_MODE ? 'DEBUG: Red tiles are being watched!' : 'Watch their eyes. Click to drop.'}
-            </div>
-             {gameState.elevatorState === 'BOARDING' && (
-               <div className="absolute top-1/4 text-green-400 font-bold animate-pulse tracking-widest uppercase text-xs">
-                 BOARDING...
-               </div>
-             )}
-          </motion.div>
-        )}
+          {gameState.phase === 'PLAYING' && (
+            <motion.div 
+              key="game"
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              className="w-full h-full flex flex-col items-center justify-between relative z-0"
+            >
+              <Header 
+                floor={gameState.floor} 
+                score={gameState.score} 
+                combo={gameState.combo}
+                isMuted={gameState.isMuted}
+                showVisionCones={gameState.showVisionCones}
+                viewMode={gameState.viewMode}
+                onToggleMute={handleToggleMute}
+                onToggleVision={() => {
+                  setGameState(prev => ({ ...prev, showVisionCones: !prev.showVisionCones }));
+                }}
+                onToggleViewMode={() => {
+                  setGameState(prev => ({ 
+                    ...prev, 
+                    viewMode: prev.viewMode === 'MOBILE_SIM' ? 'FULLSCREEN' : 'MOBILE_SIM' 
+                  }));
+                }}
+              />
 
-        {gameState.phase === 'GAME_OVER' && (
-           <GameOverScreen 
-             key="gameover"
-             score={gameState.score} 
-             floor={gameState.floor} 
-             onRestart={startGame}
-             reason={gameState.gameOverReason}
-           />
-        )}
-      </AnimatePresence>
-    </div>
+              <div className="flex-1 w-full flex items-center justify-center">
+                 <Grid 
+                    gameState={gameState} 
+                    onDrop={handleDrop} 
+                    onTileClick={(x, y) => triggerFishTreat(x, y)}
+                    monitoredCells={monitoredCells} 
+                    floatingScores={floatingScores}
+                  />
+              </div>
+
+              <MobileControls 
+                fishCooldownProgress={gameState.fishCooldownRemaining}
+                isFishActive={!!(gameState.fishTreat && gameState.fishTreat.active)}
+                onUseFish={() => triggerFishTreat(1, 1)}
+                elevatorState={gameState.elevatorState}
+              />
+            </motion.div>
+          )}
+
+          {gameState.phase === 'GAME_OVER' && (
+             <GameOverScreen
+               key="gameover"
+               score={gameState.score}
+               floor={gameState.floor}
+               onRestart={startGame}
+               reason={gameState.gameOverReason}
+               isMuted={gameState.isMuted}
+               onToggleMute={handleToggleMute}
+             />
+          )}
+        </AnimatePresence>
+      </div>
+    </MobileSimulatorFrame>
   );
 }
 
-export default App;
+export default App;

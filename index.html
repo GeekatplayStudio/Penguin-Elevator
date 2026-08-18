@@ -5,23 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="version" content="v2.2.0-fix" />
     <title>Penguin Elevator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+      * {
+        font-family: 'Silkscreen', 'Press Start 2P', monospace, sans-serif;
+      }
+      .font-pixel {
+        font-family: 'Press Start 2P', monospace;
+      }
+      html, body, #root {
+        height: 100%;
+        width: 100%;
+      }
+      html {
+        height: 100dvh;
+      }
       body {
-        background-color: #1a202c; /* Slate-900 */
+        background-color: #0b0e14;
         color: white;
         overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        margin: 0;
+      }
+      #root {
+        height: 100dvh;
+      }
+      svg, img, canvas, div {
+        image-rendering: pixelated;
       }
       /* Custom scrollbar for webkit */
       ::-webkit-scrollbar {
         width: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #2d3748;
+        background: #1e293b;
       }
       ::-webkit-scrollbar-thumb {
-        background: #4a5568;
-        border-radius: 4px;
+        background: #38bdf8;
+        border-radius: 0px;
       }
     </style>
   <script type="importmap">

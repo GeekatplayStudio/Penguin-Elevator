@@ -1,107 +1,348 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Eye, AlertTriangle } from './Icons';
+import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye } from './Icons';
 import { APP_VERSION } from '../constants';
+import { PenguinIcon } from './Penguin';
 
-export const Header: React.FC<{ floor: number; score: number }> = ({ floor, score }) => (
-  <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-10 pointer-events-none">
-    <div className="flex flex-col gap-1">
-      <h1 className="text-2xl font-black tracking-tighter text-white drop-shadow-md flex items-center gap-2">
-        <span>🐧</span> 
-        <span className="text-slate-100">ELEVATOR</span>
-      </h1>
-      <div className="bg-slate-800/80 backdrop-blur px-3 py-1 rounded border border-slate-600 shadow-lg text-white">
-        <div className="text-[10px] uppercase text-slate-400 font-bold tracking-widest">Floor</div>
-        <div className="text-3xl font-mono font-bold text-yellow-400 tabular-nums leading-none">
-           {floor.toString().padStart(3, '0')}
+/** Small floating mute toggle reused on the Start and Game Over screens */
+const MuteButton: React.FC<{ isMuted: boolean; onToggleMute: () => void }> = ({ isMuted, onToggleMute }) => (
+  <motion.button
+    onClick={onToggleMute}
+    className="absolute top-4 right-4 z-10 p-2.5 bg-[#24406b] hover:bg-[#2d4d80] border-b-4 border-[#16294a] rounded-xl shadow-lg active:scale-90 transition-all"
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+    title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+  >
+    {isMuted ? <VolumeX size={18} className="text-[#e2483d]" /> : <Volume2 size={18} className="text-[#efece2]" />}
+  </motion.button>
+);
+
+interface HeaderProps {
+  floor: number;
+  score: number;
+  combo: number;
+  isMuted: boolean;
+  showVisionCones: boolean;
+  viewMode: 'MOBILE_SIM' | 'FULLSCREEN';
+  onToggleMute: () => void;
+  onToggleVision: () => void;
+  onToggleViewMode: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ 
+  floor, 
+  score, 
+  combo,
+  isMuted,
+  showVisionCones,
+  viewMode,
+  onToggleMute,
+  onToggleVision,
+  onToggleViewMode
+}) => (
+  <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-30 pointer-events-none">
+    {/* LEFT HUD: TITLE & FLOOR */}
+    <div className="flex flex-col gap-2 pointer-events-auto">
+      <div className="flex items-center gap-2 bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
+        <motion.div
+          className="filter drop-shadow-md"
+          animate={{ rotate: [0, 5, -5, 0], y: [0, -4, -4, 0] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
+          <PenguinIcon size={32} />
+        </motion.div>
+        <div>
+          <h1 className="text-sm font-pixel font-bold tracking-tight text-[#efece2] leading-none">
+            PENGUIN <span className="text-[#f2901f]">ELEVATOR</span>
+          </h1>
+          <div className="text-[10px] font-pixel text-[#8fa2c0]">Safety First!</div>
         </div>
+      </div>
+
+      <div className="bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg flex items-center gap-3">
+        <div>
+          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider">Current Floor</div>
+          <motion.div
+            className="text-2xl font-pixel font-bold text-[#fbbf3c] leading-none"
+            key={floor}
+            initial={{ scale: 0.5 }}
+            animate={{ scale: 1 }}
+          >
+             {floor.toString().padStart(3, '0')}
+          </motion.div>
+        </div>
+
+        {combo > 1 && (
+          <motion.div
+            initial={{ scale: 0.5, rotate: -10 }}
+            animate={{ scale: [1, 1.2, 1], rotate: 0 }}
+            transition={{ repeat: Infinity, duration: 0.6 }}
+            className="bg-[#f2901f] text-[#232a4a] font-pixel text-xs px-2.5 py-1 rounded-xl border-b-2 border-[#c26a10] shadow-lg tracking-widest font-bold"
+          >
+            {combo}x COMBO
+          </motion.div>
+        )}
       </div>
     </div>
     
-    <div className="bg-slate-800/80 backdrop-blur px-3 py-1 rounded border border-slate-600 shadow-lg text-white text-right">
-       <div className="text-[10px] uppercase text-slate-400 font-bold tracking-widest">Score</div>
-       <div className={`text-2xl font-mono font-bold tabular-nums ${score < 0 ? 'text-red-400' : 'text-white'}`}>{score}</div>
+    {/* RIGHT HUD: SCORE & QUICK TOGGLES */}
+    <div className="flex flex-col items-end gap-2 pointer-events-auto">
+      {/* SCORE BADGE */}
+      <div className="bg-[#1d3358] px-5 py-2.5 rounded-2xl border-b-4 border-[#12213c] shadow-lg text-right">
+         <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider">Score</div>
+         <motion.div
+           className={`text-xl font-pixel font-bold ${score < 0 ? 'text-[#e2483d]' : 'text-[#efece2]'}`}
+           key={score}
+           initial={{ scale: 0.8 }}
+           animate={{ scale: 1 }}
+         >
+           {score >= 0 ? '+' : ''}{score}
+         </motion.div>
+      </div>
+
+      {/* QUICK TOGGLE BUTTONS */}
+      <div className="flex items-center gap-2 bg-[#1d3358] p-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
+        {/* Mute Toggle */}
+        <motion.button
+          onClick={onToggleMute}
+          className="p-2 bg-[#24406b] hover:bg-[#2d4d80] rounded-xl border-b-2 border-[#16294a] active:scale-90 transition-all"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title={isMuted ? "Unmute Sound" : "Mute Sound"}
+        >
+          {isMuted ? <VolumeX size={18} className="text-[#e2483d]" /> : <Volume2 size={18} className="text-[#efece2]" />}
+        </motion.button>
+
+        {/* Vision Lines Toggle */}
+        <motion.button
+          onClick={onToggleVision}
+          className={`p-2 rounded-xl border-b-2 transition-all ${showVisionCones ? 'bg-[#f2901f] text-[#232a4a] border-[#c26a10]' : 'bg-[#24406b] hover:bg-[#2d4d80] text-[#8fa2c0] border-[#16294a]'}`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title="Toggle Vision Lines"
+        >
+          {showVisionCones ? <Eye size={18} /> : <EyeOff size={18} />}
+        </motion.button>
+
+        {/* PC Simulator / Fullscreen View Switcher */}
+        <motion.button
+          onClick={onToggleViewMode}
+          className="p-2 bg-[#24406b] hover:bg-[#2d4d80] rounded-xl border-b-2 border-[#16294a] active:scale-90 transition-all hidden sm:flex"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title={viewMode === 'MOBILE_SIM' ? "Switch to Fullscreen" : "Switch to Mobile Sim Frame"}
+        >
+          {viewMode === 'MOBILE_SIM' ? <Monitor size={18} className="text-[#efece2]" /> : <Smartphone size={18} className="text-[#8fa2c0]" />}
+        </motion.button>
+      </div>
     </div>
   </div>
 );
 
-export const GameOverScreen: React.FC<{ score: number; floor: number; onRestart: () => void; reason?: 'CAUGHT' | 'BANKRUPT' }> = ({ score, floor, onRestart, reason }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-    <motion.div 
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      className="bg-slate-900 p-8 rounded-xl border border-slate-700 shadow-2xl max-w-sm w-full text-center"
+interface MobileControlsProps {
+  fishCooldownProgress: number; // 0 to 1 (1 = ready)
+  isFishActive: boolean;
+  onUseFish: () => void;
+  elevatorState: string;
+}
+
+export const MobileControls: React.FC<MobileControlsProps> = ({
+  fishCooldownProgress,
+  isFishActive,
+  onUseFish,
+  elevatorState
+}) => (
+  <div className="absolute bottom-3 left-0 right-0 px-3 flex flex-col items-center gap-3 z-30 pointer-events-none">
+    {/* STATUS BADGE */}
+    {elevatorState === 'BOARDING' && (
+      <motion.div
+        className="bg-[#efece2] text-[#232a4a] font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 border-[#c3bfb2] shadow-lg rounded-xl pointer-events-auto tracking-wide"
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ repeat: Infinity, duration: 0.6 }}
+      >
+        PASSENGERS ENTERING
+      </motion.div>
+    )}
+    {elevatorState === 'MOVING' && (
+      <motion.div
+        className="bg-[#24406b] text-[#efece2] font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 border-[#3d5a8c] shadow-lg rounded-xl pointer-events-auto tracking-wide"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ repeat: Infinity, duration: 0.5 }}
+      >
+        ELEVATOR ASCENDING
+      </motion.div>
+    )}
+
+    {/* FISH TREAT DISTRACTION BUTTON */}
+    <div className="pointer-events-auto flex items-center gap-3">
+      <motion.button
+        onClick={onUseFish}
+        disabled={fishCooldownProgress < 1 || isFishActive}
+        className={`relative overflow-hidden px-6 py-3 font-pixel text-sm flex items-center gap-2.5 border-b-4 rounded-2xl font-bold uppercase tracking-wide transition-all ${
+          isFishActive
+            ? 'bg-[#fbbf3c] text-[#232a4a] border-[#d97b12] shadow-lg'
+            : fishCooldownProgress >= 1
+              ? 'bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] border-[#d97b12] shadow-lg'
+              : 'bg-[#2c3a61] text-[#6b7aa0] cursor-not-allowed border-[#1d2b4d]'
+        }`}
+        whileHover={fishCooldownProgress >= 1 && !isFishActive ? { scale: 1.05 } : {}}
+        whileTap={fishCooldownProgress >= 1 && !isFishActive ? { scale: 0.95 } : {}}
+        animate={isFishActive ? { rotate: [0, 6, -6, 0] } : {}}
+        transition={isFishActive ? { repeat: Infinity, duration: 0.4 } : {}}
+      >
+        {/* COOLDOWN PROGRESS BAR FILL */}
+        {fishCooldownProgress < 1 && !isFishActive && (
+          <motion.div
+            className="absolute left-0 top-0 bottom-0 bg-[#f2901f]/35"
+            animate={{ width: `${fishCooldownProgress * 100}%` }}
+            transition={{ duration: 0.1 }}
+          />
+        )}
+        {/* Voxel fish icon, drawn in the same cube style as the penguins */}
+        <svg viewBox="0 0 12 8" className="w-7 h-5 relative z-10">
+          {[
+            [4, 2], [5, 2], [6, 2], [7, 2],
+            [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [1, 3], [2, 3],
+            [3, 4], [4, 4], [5, 4], [6, 4], [7, 4], [8, 4], [1, 4], [2, 4],
+            [4, 5], [5, 5], [6, 5], [7, 5],
+          ].map(([fx, fy], i) => (
+            <rect key={i} x={fx + 0.04} y={fy + 0.04} width={0.92} height={0.92} rx={0.18} fill={fx < 3 ? '#e2483d' : '#38bdf8'} />
+          ))}
+          <rect x={6.04} y={3.04} width={0.92} height={0.92} rx={0.18} fill="#f7f6f2" />
+        </svg>
+        <span className="relative z-10">{isFishActive ? 'YUMMY!' : 'TREAT'}</span>
+      </motion.button>
+    </div>
+  </div>
+);
+
+interface GameOverScreenProps {
+  score: number;
+  floor: number;
+  onRestart: () => void;
+  reason?: 'CAUGHT' | 'BANKRUPT';
+  isMuted: boolean;
+  onToggleMute: () => void;
+}
+
+export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, onRestart, reason, isMuted, onToggleMute }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 select-none">
+    <motion.div
+      initial={{ scale: 0.85, opacity: 0, y: 20 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      className="relative bg-[#1d3358] p-8 border-b-[6px] border-[#12213c] shadow-2xl max-w-sm w-full text-center rounded-3xl"
     >
-      <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 ${reason === 'BANKRUPT' ? 'bg-orange-500/10 text-orange-500' : 'bg-red-500/10 text-red-500'}`}>
-        {reason === 'BANKRUPT' ? <AlertTriangle size={48} /> : <Eye size={48} />}
-      </div>
-      
-      <h2 className="text-3xl font-black text-white mb-2">
-         {reason === 'BANKRUPT' ? 'OVERCROWDED!' : 'BUSTED!'}
+      <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
+      <motion.div
+        className="inline-flex items-center justify-center mb-2"
+        animate={{ rotate: [-4, 4, -4], y: [0, -3, 0] }}
+        transition={{ repeat: Infinity, duration: 0.5 }}
+      >
+        <PenguinIcon size={88} isPanic type="STANDARD" />
+      </motion.div>
+
+      <h2 className="text-xl font-pixel font-bold text-white mb-2 tracking-tight">
+         {reason === 'BANKRUPT' ? 'ELEVATOR FULL!' : 'BUSTED!'}
       </h2>
-      <p className="text-slate-400 mb-8 font-medium">
-        {reason === 'BANKRUPT' ? 'Score dropped too low.' : 'Someone saw the drop!'}
+      <p className="text-slate-400 mb-5 text-xs font-pixel leading-relaxed">
+        {reason === 'BANKRUPT' ? 'No room left - the floor filled up completely!' : 'A penguin caught you dropping a passenger!'}
       </p>
       
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-black/20 p-3 rounded-lg">
-          <div className="text-[10px] text-slate-500 uppercase font-bold">Floor</div>
-          <div className="text-2xl font-bold text-white">{floor}</div>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="bg-[#16294a] p-3 rounded-xl border-b-4 border-[#0f1d36]">
+          <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">HIGH FLOOR</div>
+          <div className="text-xl font-pixel font-bold text-[#efece2]">{floor}</div>
         </div>
-        <div className="bg-black/20 p-3 rounded-lg">
-          <div className="text-[10px] text-slate-500 uppercase font-bold">Score</div>
-          <div className="text-2xl font-bold text-yellow-400">{score}</div>
+        <div className="bg-[#16294a] p-3 rounded-xl border-b-4 border-[#0f1d36]">
+          <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">SCORE</div>
+          <div className="text-xl font-pixel font-bold text-[#fbbf3c]">{score}</div>
         </div>
       </div>
 
-      <button 
+      <button
         onClick={onRestart}
-        className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold rounded-lg transition-colors active:scale-95 uppercase tracking-wide"
+        className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
       >
-        Try Again
+        TRY AGAIN
       </button>
+      <div className="mt-3 text-[#6b7aa0] text-[9px] font-pixel">PRESS <kbd className="bg-[#24406b] text-[#efece2] px-1.5 py-0.5 rounded">SPACE</kbd> TO RESTART</div>
     </motion.div>
   </div>
 );
 
-export const StartScreen: React.FC<{ onStart: () => void; highScore: number }> = ({ onStart, highScore }) => (
-  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4">
+export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isMuted: boolean; onToggleMute: () => void }> = ({ onStart, highScore, isMuted, onToggleMute }) => (
+  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4 select-none">
+    <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
     <motion.div
        initial={{ y: 20, opacity: 0 }}
        animate={{ y: 0, opacity: 1 }}
        className="text-center max-w-md w-full"
     >
-      <div className="text-6xl mb-4">🐧</div>
-      <h1 className="text-5xl font-black text-white mb-2 tracking-tight">
-        PENGUIN<br/>ELEVATOR
+      <div className="flex justify-center mb-3">
+        <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}>
+          <PenguinIcon size={96} />
+        </motion.div>
+      </div>
+      <h1 className="text-2xl font-pixel font-bold text-[#efece2] mb-1 tracking-tight leading-normal">
+        PENGUIN<br/>
+        <span className="text-[#f2901f]">ELEVATOR</span>
       </h1>
-      <div className="text-slate-600 font-mono text-xs mb-6 tracking-widest uppercase opacity-50">
+      <div className="text-[#6b7aa0] font-pixel text-[9px] mb-5 tracking-widest uppercase">
         {APP_VERSION}
       </div>
-      
-      <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-800 mb-8 text-left">
-        <h3 className="text-white font-bold mb-3 uppercase tracking-wider text-sm border-b border-slate-700 pb-2">How to Play</h3>
-        <ul className="text-slate-400 text-sm space-y-2 list-disc list-inside">
-          <li>Penguins enter at each floor.</li>
-          <li><strong>Drop them</strong> through trapdoors to clear space.</li>
-          <li><span className="text-red-400 font-bold">RULE 1:</span> Don't let anyone see you drop another penguin! Watch their eyes (Front, Back, Left, Right).</li>
-          <li><span className="text-orange-400 font-bold">RULE 2:</span> If the elevator is full, you lose <strong>2 Points</strong>.</li>
-          <li><span className="text-yellow-400 font-bold">RULE 3:</span> If Score hits -10, Game Over.</li>
+
+      <div className="bg-[#1d3358] p-5 rounded-2xl border-b-[6px] border-[#12213c] mb-5 text-left">
+        <h3 className="text-[#fbbf3c] font-pixel text-[10px] mb-3 uppercase border-b-2 border-[#2d4d80] pb-2">HOW TO PLAY</h3>
+        <ul className="text-[#d8dce8] text-[10px] font-pixel space-y-3 leading-relaxed">
+          <li>Drop penguins through trapdoors to clear space.</li>
+          <li><strong className="text-[#e2483d]">RULE:</strong> Penguins watch 3 directions and only miss what's directly behind them - drop only where none can see!</li>
+          <li>Use the <strong className="text-[#f2901f]">TREAT</strong> to make penguins look away.</li>
+          <li><strong className="text-[#e2483d]">FULL FLOOR = GAME OVER.</strong> Keep making room!</li>
         </ul>
       </div>
 
       {highScore > 0 && (
-         <div className="mb-8 inline-block px-4 py-2 bg-slate-800 rounded text-yellow-500 font-mono font-bold text-sm tracking-wider">
-            BEST: {highScore}
+         <div className="mb-5 inline-block px-4 py-2 bg-[#1d3358] rounded-xl border-b-4 border-[#12213c] text-[#fbbf3c] font-pixel font-bold text-xs shadow-md">
+            BEST SCORE: {highScore}
          </div>
       )}
 
-      <button 
+      <button
         onClick={onStart}
-        className="w-full py-4 bg-white hover:bg-slate-100 text-slate-900 font-black rounded-xl text-lg transition-all shadow-xl active:scale-95 uppercase tracking-widest"
+        className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] text-base active:translate-y-1 active:border-b-2 uppercase tracking-widest transition-all"
       >
-        Start Game
+        START GAME
       </button>
     </motion.div>
   </div>
 );
+
+/**
+ * Mobile Simulator Frame Wrapper for PC Testing
+ */
+export const MobileSimulatorFrame: React.FC<{ children: React.ReactNode; isEnabled: boolean }> = ({ children, isEnabled }) => {
+  if (!isEnabled) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="w-full h-screen bg-slate-950 flex items-center justify-center p-2 sm:p-6 overflow-hidden">
+      {/* PHONE BEZEL */}
+      <div className="relative w-full max-w-[420px] h-full max-h-[860px] bg-slate-900 rounded-[32px] p-3 border-8 border-slate-950 shadow-[0_0_60px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden">
+        {/* PHONE TOP NOTCH / CAMERA */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-3.5 bg-slate-950 rounded-full z-50 flex items-center justify-center">
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800" />
+        </div>
+
+        {/* SCREEN VIEWPORT */}
+        <div className="relative w-full h-full rounded-[24px] overflow-hidden bg-slate-950 flex flex-col">
+          {children}
+        </div>
+
+        {/* PHONE HOME INDICATOR BAR */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-600 rounded-full z-50 opacity-60" />
+      </div>
+    </div>
+  );
+};
+
