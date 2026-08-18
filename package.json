@@ -1,7 +1,13 @@
 {
   "name": "penguin-elevator",
   "private": true,
-  "version": "0.0.0",
+  "version": "3.0.0",
+  "description": "Penguin Elevator - 3D Voxel Arcade Puzzle Game by Geekatplay Studio (Vladimir Chopine)",
+  "author": "Vladimir Chopine (Geekatplay Studio)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GeekatplayStudio/Penguin-Elevator.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

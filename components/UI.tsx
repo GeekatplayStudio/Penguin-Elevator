@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye } from './Icons';
-import { APP_VERSION } from '../constants';
+import { APP_VERSION, STUDIO_NAME, AUTHOR_NAME, COPYRIGHT_NOTICE } from '../constants';
 import { PenguinIcon } from './Penguin';
 
 /** Small floating mute toggle reused on the Start and Game Over screens */
@@ -300,10 +300,14 @@ export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isM
 
       <button
         onClick={onStart}
-        className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] text-base active:translate-y-1 active:border-b-2 uppercase tracking-widest transition-all"
+        className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] text-base active:translate-y-1 active:border-b-2 uppercase tracking-widest transition-all shadow-xl"
       >
         START GAME
       </button>
+
+      <div className="mt-4 text-[#8fa2c0] font-pixel text-[9px] tracking-wider uppercase opacity-90">
+        {STUDIO_NAME} • {AUTHOR_NAME}
+      </div>
     </motion.div>
   </div>
 );
