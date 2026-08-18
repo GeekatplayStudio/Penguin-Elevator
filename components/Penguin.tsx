@@ -136,12 +136,10 @@ export const Penguin: React.FC<PenguinProps> = ({
             key="penguin-pixel-body"
             initial={{ opacity: 0, scale: 0 }}
             animate={penguin.isPanic ? {
-               x: facingDir === 'LEFT' ? -30 : facingDir === 'RIGHT' ? 30 : 0,
-               y: 40,
-               opacity: 0,
-               scale: 0.8,
-               rotate: facingDir === 'LEFT' ? -15 : 15,
-               transition: { duration: 0.5, ease: "easeIn" }
+               y: [0, -36, 0, -26, 0],
+               scale: [1, 1.28, 0.95, 1.2, 1],
+               rotate: [0, -14, 14, -8, 8, 0],
+               transition: { repeat: Infinity, duration: 0.38, ease: "easeInOut" }
             } : {
               opacity: 1,
               scale: 1,
@@ -164,8 +162,7 @@ export const Penguin: React.FC<PenguinProps> = ({
             onClick={(e) => { e.stopPropagation(); onClick(); }}
           >
 
-            {/* BLIND SPOT BADGE - the one direction this penguin can't see (only
-                on hover / vision toggle, to keep the default board clean) */}
+            {/* BLIND SPOT BADGE - the one direction this penguin can't see */}
             {(showVisionCone || isHovered) && !penguin.isPanic && penguin.type !== 'SLEEPY' && (
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
@@ -179,13 +176,13 @@ export const Penguin: React.FC<PenguinProps> = ({
             )}
 
             {/* TYPE BADGES */}
-            {penguin.type === 'VIP' && (
+            {penguin.type === 'VIP' && !penguin.isPanic && (
               <div className="absolute -top-10 bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold text-[8px] px-1.5 py-0.5 rounded-md border-2 border-[#d97b12] shadow-lg animate-bounce z-30">
                 ★ VIP
               </div>
             )}
 
-            {penguin.type === 'SLEEPY' && (
+            {penguin.type === 'SLEEPY' && !penguin.isPanic && (
               <motion.div
                 animate={{ y: [-2, -8, -2], opacity: [0.6, 1, 0.6] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
@@ -195,13 +192,14 @@ export const Penguin: React.FC<PenguinProps> = ({
               </motion.div>
             )}
 
-            {/* GROUND CONTACT SHADOW - anchors the penguin onto the tile */}
+            {/* GROUND CONTACT SHADOW */}
             <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-10 h-3 sm:w-12 sm:h-3.5 rounded-full bg-black/45 blur-[3px] pointer-events-none" />
 
             {/* SPRITE WRAPPER */}
             <div className={clsx(
               "transition-transform duration-150 relative",
-              isHovered && !penguin.isPanic ? "scale-115 brightness-125 drop-shadow-[0_0_12px_rgba(242,144,31,0.85)]" : ""
+              isHovered && !penguin.isPanic ? "scale-115 brightness-125 drop-shadow-[0_0_12px_rgba(242,144,31,0.85)]" : "",
+              penguin.isPanic ? "drop-shadow-[0_0_20px_rgba(226,72,61,1)]" : ""
             )}>
               <PixelPenguinSprite
                 facingDir={facingDir}
@@ -212,15 +210,15 @@ export const Penguin: React.FC<PenguinProps> = ({
               />
             </div>
 
-            {/* PANIC EXCLAMATION */}
+            {/* PANIC JUMP & SCREAM SPEECH BUBBLE */}
             {penguin.isPanic && (
               <motion.div
                 initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: [1, 1.5, 1], opacity: 1, y: -15 }}
-                transition={{ repeat: Infinity, duration: 0.25 }}
-                className="absolute -top-6 text-[#e2483d] font-pixel font-bold text-2xl drop-shadow-[0_0_8px_rgba(226,72,61,1)] z-40"
+                animate={{ scale: [1, 1.35, 1], y: [-15, -28, -15] }}
+                transition={{ repeat: Infinity, duration: 0.35 }}
+                className="absolute -top-12 px-2.5 py-1 bg-[#e2483d] text-white font-pixel font-bold text-[11px] rounded-xl border-2 border-white shadow-[0_0_18px_rgba(226,72,61,1)] flex items-center gap-1 z-40 uppercase tracking-wider whitespace-nowrap"
               >
-                !
+                <span>HEY!! 🚨</span>
               </motion.div>
             )}
 
