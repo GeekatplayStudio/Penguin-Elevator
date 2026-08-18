@@ -65,7 +65,7 @@ const PixelPenguinSprite: React.FC<{
   const { src, flip } = getSpriteInfo(facingDir, type, isPanic, appearanceVariant);
 
   return (
-    <div className={clsx('relative flex items-end justify-center select-none', sizeClass ?? 'w-[76px] h-[86px] sm:w-[88px] sm:h-[98px]')}>
+    <div className={clsx('relative flex items-end justify-center select-none', sizeClass ?? 'w-[62px] h-[70px] sm:w-[72px] sm:h-[80px]')}>
       <img
         src={src}
         alt="Pixel Penguin"
@@ -117,10 +117,10 @@ export const Penguin: React.FC<PenguinProps> = ({
   const BLIND_SPOT: Record<Direction, Direction> = { DOWN: 'UP', UP: 'DOWN', LEFT: 'RIGHT', RIGHT: 'LEFT' };
   const getDirectionInfo = (dir: Direction) => {
     switch (dir) {
-      case 'DOWN':  return { arrow: '↘', label: 'SE' };
-      case 'LEFT':  return { arrow: '↙', label: 'SW' };
-      case 'RIGHT': return { arrow: '↗', label: 'NE' };
-      case 'UP':    return { arrow: '↖', label: 'NW' };
+      case 'DOWN':  return { arrow: '↓', label: 'FRONT' };
+      case 'LEFT':  return { arrow: '←', label: 'LEFT' };
+      case 'RIGHT': return { arrow: '→', label: 'RIGHT' };
+      case 'UP':    return { arrow: '↑', label: 'BACK' };
     }
   };
 
@@ -134,12 +134,34 @@ export const Penguin: React.FC<PenguinProps> = ({
         {!penguin.isFalling && (
           <motion.div
             key="penguin-pixel-body"
-            initial={{ opacity: 0, scale: 0 }}
+            initial={penguin.isEntering ? { opacity: 0, scale: 0.3, y: -60, rotate: -20 } : { opacity: 0, scale: 0 }}
             animate={penguin.isPanic ? {
                y: [0, -36, 0, -26, 0],
                scale: [1, 1.28, 0.95, 1.2, 1],
                rotate: [0, -14, 14, -8, 8, 0],
                transition: { repeat: Infinity, duration: 0.38, ease: "easeInOut" }
+            } : penguin.isDizzy ? {
+               // Funny dizzy wobble right before the trapdoor opens
+               opacity: 1,
+               rotate: [0, -18, 18, -12, 12, -6, 6, 0],
+               scale: [1, 1.1, 0.95, 1.05, 1],
+               y: [0, -6, 0, -4, 0],
+               transition: { duration: 0.45, ease: "easeInOut" }
+            } : penguin.isPushed ? {
+               // Got shoved by a boarding penguin - quick nudge and spin
+               opacity: 1,
+               scale: 1,
+               x: [0, 8, -6, 3, 0],
+               rotate: [0, 12, -10, 5, 0],
+               y: [0, -8, 0],
+               transition: { duration: 0.6, ease: "easeOut" }
+            } : penguin.isEntering ? {
+               // Waddle-in bounce when boarding the elevator
+               opacity: 1,
+               scale: [0.3, 1.15, 0.95, 1],
+               y: [-60, 0, -10, 0],
+               rotate: [-20, 8, -4, 0],
+               transition: { duration: 0.7, ease: "easeOut" }
             } : {
               opacity: 1,
               scale: 1,

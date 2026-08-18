@@ -1,5 +1,5 @@
 
-export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';  // 4 Isometric Directions: UP=NorthWest, DOWN=SouthEast, LEFT=SouthWest, RIGHT=NorthEast
+export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';  // Screen-aligned: UP=away (back), DOWN=toward viewer (front), LEFT/RIGHT=screen sides
 
 export type PenguinTypeVariant = 'STANDARD' | 'SLEEPY' | 'VIP' | 'JITTERY';
 
@@ -13,6 +13,9 @@ export interface Penguin {
   isFalling?: boolean;
   isDistracted?: boolean; // Looking at fish treat
   distractionDir?: Direction;
+  isEntering?: boolean;   // Just boarded - plays waddle-in animation
+  isPushed?: boolean;     // Got shoved by a boarding penguin - quick nudge + spin
+  isDizzy?: boolean;      // Pre-drop wobble before falling through trapdoor
   appearanceVariant: number; // Visual accessory or color
 }
 
@@ -50,7 +53,7 @@ export interface GameState {
   gameOverReason?: 'CAUGHT' | 'BANKRUPT';
   combo: number;
   fishTreat: FishTreat | null;
-  fishCooldownRemaining: number; // in seconds or percentage
+  fishCount: number; // Fish inventory - earn 1 every 10 floors, place on empty tile
   showVisionCones: boolean;
   isMuted: boolean;
   viewMode: 'MOBILE_SIM' | 'FULLSCREEN';

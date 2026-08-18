@@ -22,10 +22,10 @@ export const TIMING = {
   DOOR_ANIMATION: 400,    // Time for door to close
   MOVE_TIME: 3500,        // Duration of elevator moving to next floor
   ROTATION_EVENT: 1500,   // When during move phase penguins rotate
+  DIZZY_ANIMATION: 450,   // Funny dizzy wobble before the trapdoor opens
   DROP_ANIMATION: 500,    // Time for penguin to fall through trapdoor
   PANIC_DELAY: 2600,      // Time for multi-jump screaming before game over screen
   FISH_DISTRACTION: 3500, // How long penguins stay distracted by fish
-  FISH_COOLDOWN: 12000,   // Cooldown between fish treat uses
 };
 
 export const CELL_SIZE = 64; // Fallback

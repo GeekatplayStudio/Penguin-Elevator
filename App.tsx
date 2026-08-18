@@ -9,7 +9,7 @@ import { ElevatorShaft } from './components/ElevatorShaft';
 import { Header, GameOverScreen, StartScreen, MobileControls, MobileSimulatorFrame } from './components/UI';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const INITIAL_PENGUINS_COUNT = Math.floor((GRID_SIZE * GRID_SIZE) / 2); // Half the floor starts occupied
+const INITIAL_PENGUINS_MIN = 3; // Game starts with 3-4 penguins in their own sections
 
 function App() {
   const [gameState, setGameState] = useState<GameState>({
@@ -23,7 +23,7 @@ function App() {
     witnessIds: [],
     combo: 0,
     fishTreat: null,
-    fishCooldownRemaining: 1, // 1 = fully ready
+    fishCount: 1,
     showVisionCones: false,
     isMuted: false,
     viewMode: 'MOBILE_SIM',
@@ -62,20 +62,6 @@ function App() {
     };
   }, []);
 
-  // Fish Treat Cooldown Timer Tick
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (gameState.fishCooldownRemaining < 1) {
-      interval = setInterval(() => {
-        setGameState(prev => {
-          const next = Math.min(1, prev.fishCooldownRemaining + 0.08);
-          return { ...prev, fishCooldownRemaining: next };
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [gameState.fishCooldownRemaining]);
-
   const handleToggleMute = () => {
     const muted = audioManager.toggleMute();
     setGameState(prev => ({ ...prev, isMuted: muted }));
@@ -93,8 +79,9 @@ function App() {
     audioManager.unlock();
     const newPenguins: Penguin[] = [];
     const usedPositions = new Set<string>();
+    const initialCount = INITIAL_PENGUINS_MIN + Math.floor(Math.random() * 2); // 3 or 4
 
-    while (newPenguins.length < INITIAL_PENGUINS_COUNT) {
+    while (newPenguins.length < initialCount) {
       const x = Math.floor(Math.random() * GRID_SIZE);
       const y = Math.floor(Math.random() * GRID_SIZE);
       const key = `${x},${y}`;
@@ -123,7 +110,7 @@ function App() {
       gameOverReason: undefined,
       combo: 0,
       fishTreat: null,
-      fishCooldownRemaining: 1
+      fishCount: 1
     }));
     
     audioManager.playMusic();
@@ -160,28 +147,47 @@ function App() {
       }
 
       const numToAdd = prev.penguins.length === 0 ? 3 : 1;
-      let nextPenguins = [...prev.penguins];
+      let nextPenguins: Penguin[] = prev.penguins.map(p => ({ ...p, isEntering: false, isPushed: false }));
       let added = false;
+      const pushedIds = new Set<string>();
 
       for (let i = 0; i < numToAdd; i++) {
           if (nextPenguins.length >= MAX_CAPACITY) break;
           const emptyPos = findEmptyCell(nextPenguins);
           if (emptyPos) {
+              // The newcomer shoves its orthogonal neighbors around, spinning them to face a new random side
+              nextPenguins = nextPenguins.map(p => {
+                const isNeighbor = Math.abs(p.x - emptyPos.x) + Math.abs(p.y - emptyPos.y) === 1;
+                if (isNeighbor && !p.isFalling && Math.random() < 0.5) {
+                  pushedIds.add(p.id);
+                  return { ...p, isPushed: true, direction: getRandomDirection() };
+                }
+                return p;
+              });
               nextPenguins.push({
                 id: uuidv4(),
                 x: emptyPos.x,
                 y: emptyPos.y,
                 direction: getRandomDirection(),
                 type: getRandomPenguinType(),
+                isEntering: true,
                 appearanceVariant: Math.floor(Math.random() * 4)
               });
               added = true;
           }
       }
-      
+
       if (added) audioManager.playEnter();
       return { ...prev, penguins: nextPenguins };
     });
+
+    // Clear the one-shot boarding animation flags once they have played
+    setTimeout(() => {
+      setGameState(prev => ({
+        ...prev,
+        penguins: prev.penguins.map(p => ({ ...p, isEntering: false, isPushed: false }))
+      }));
+    }, 900);
 
     if (gameOver) return;
 
@@ -224,25 +230,37 @@ function App() {
     setTimeout(() => {
       setGameState(prev => {
          if (prev.phase !== 'PLAYING') return prev;
+         const nextFloor = prev.floor + 1;
+         const earnedFish = nextFloor % 10 === 0; // A fish reward every 10th floor
+         if (earnedFish) audioManager.playCombo();
          return {
           ...prev,
           elevatorState: 'STOPPED',
-          floor: prev.floor + 1,
+          floor: nextFloor,
           score: prev.score + SCORE_PER_FLOOR,
+          fishCount: earnedFish ? prev.fishCount + 1 : prev.fishCount,
          };
       });
       startFloorCycle();
     }, moveTime);
   };
 
+  // Places a fish on a random empty tile (for the quick-use button / F key)
+  const placeFishAuto = () => {
+    const empty = findEmptyCell(gameState.penguins.filter(p => !p.isFalling));
+    if (empty) triggerFishTreat(empty.x, empty.y);
+  };
+
   const triggerFishTreat = (x: number = 1, y: number = 1) => {
-    if (gameState.fishCooldownRemaining < 1 || (gameState.fishTreat && gameState.fishTreat.active)) return;
+    if (gameState.fishCount < 1 || (gameState.fishTreat && gameState.fishTreat.active)) return;
+    // Fish can only be placed on an empty square
+    if (gameState.penguins.some(p => p.x === x && p.y === y && !p.isFalling)) return;
 
     audioManager.playSplash();
     setGameState(prev => ({
       ...prev,
       fishTreat: { x, y, active: true },
-      fishCooldownRemaining: 0
+      fishCount: prev.fishCount - 1
     }));
 
     if (fishTimerRef.current) clearTimeout(fishTimerRef.current);
@@ -282,9 +300,10 @@ function App() {
         targetPenguin.type === 'VIP' ? '#F59E0B' : '#38BDF8'
       );
 
+      // Funny pre-drop: the penguin gets dizzy and wobbles before the trapdoor opens
       setGameState(prev => ({
         ...prev,
-        penguins: prev.penguins.map(p => p.id === id ? { ...p, isFalling: true } : p),
+        penguins: prev.penguins.map(p => p.id === id ? { ...p, isDizzy: true } : p),
         score: prev.score + totalPoints,
         combo: newCombo,
         lastDroppedId: id
@@ -293,10 +312,17 @@ function App() {
       setTimeout(() => {
         setGameState(prev => ({
           ...prev,
+          penguins: prev.penguins.map(p => p.id === id ? { ...p, isDizzy: false, isFalling: true } : p),
+        }));
+      }, TIMING.DIZZY_ANIMATION);
+
+      setTimeout(() => {
+        setGameState(prev => ({
+          ...prev,
           penguins: prev.penguins.filter(p => p.id !== id),
           lastDroppedId: null
         }));
-      }, TIMING.DROP_ANIMATION);
+      }, TIMING.DIZZY_ANIMATION + TIMING.DROP_ANIMATION);
 
     } else {
       audioManager.stopMusic();
@@ -337,7 +363,7 @@ function App() {
         }
       }
       if (e.code === 'KeyF' && gameState.phase === 'PLAYING') {
-        triggerFishTreat();
+        placeFishAuto();
       }
       if (e.code === 'KeyV' && gameState.phase === 'PLAYING') {
         setGameState(prev => ({ ...prev, showVisionCones: !prev.showVisionCones }));
@@ -407,10 +433,10 @@ function App() {
                   />
               </div>
 
-              <MobileControls 
-                fishCooldownProgress={gameState.fishCooldownRemaining}
+              <MobileControls
+                fishCount={gameState.fishCount}
                 isFishActive={!!(gameState.fishTreat && gameState.fishTreat.active)}
-                onUseFish={() => triggerFishTreat(1, 1)}
+                onUseFish={placeFishAuto}
                 elevatorState={gameState.elevatorState}
               />
             </motion.div>
@@ -433,4 +459,4 @@ function App() {
   );
 }
 
-export default App;
+export default App;

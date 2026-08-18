@@ -1,12 +1,13 @@
 import { Direction, Penguin, GridPos, PenguinTypeVariant, FishTreat } from '../types';
 import { GRID_SIZE } from '../constants';
 
+// Screen-aligned axes: penguins face the flat SIDES of squares, never corners.
 export const getVector = (dir: Direction): GridPos => {
   switch (dir) {
-    case 'DOWN':  return { x: 1, y: 0 };  // SouthEast (Front)
-    case 'LEFT':  return { x: 0, y: 1 };  // SouthWest (Left)
-    case 'RIGHT': return { x: 0, y: -1 }; // NorthEast (Right)
-    case 'UP':    return { x: -1, y: 0 }; // NorthWest (Back)
+    case 'DOWN':  return { x: 0, y: 1 };  // Toward viewer (front sprite)
+    case 'UP':    return { x: 0, y: -1 }; // Away from viewer (back sprite)
+    case 'LEFT':  return { x: -1, y: 0 }; // Screen left
+    case 'RIGHT': return { x: 1, y: 0 };  // Screen right
   }
 };
 
@@ -20,48 +21,69 @@ const OPPOSITE_DIRECTION: Record<Direction, Direction> = {
 const ALL_DIRECTIONS: Direction[] = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 /**
- * A penguin watches 3 of the 4 cardinal rays from its cell - every direction
- * except straight behind it (the opposite of where it's facing). It cannot
- * see anything happening directly at its back.
+ * How far a penguin sees along each ray, by where that ray sits relative to
+ * its facing: straight ahead it has a clear long look, to the sides it only
+ * catches things in the corner of its eye, and behind it sees nothing at all.
  */
-export const getVisibleDirections = (facingDir: Direction): Direction[] => {
+export const VISION_RANGE = {
+  FORWARD: 3,
+  SIDE: 2,
+  BACK: 0,
+} as const;
+
+export const MAX_VISION_DISTANCE = VISION_RANGE.FORWARD; // Longest possible ray
+
+/** A ray a penguin is currently watching, with how far down it can see. */
+export interface VisionRay {
+  dir: Direction;
+  range: number;
+}
+
+/**
+ * The rays a penguin watches given where it's facing: forward at full range,
+ * both sides at the shorter range, and nothing behind it.
+ */
+export const getVisionRays = (facingDir: Direction): VisionRay[] => {
   const blindSpot = OPPOSITE_DIRECTION[facingDir];
-  return ALL_DIRECTIONS.filter(dir => dir !== blindSpot);
+  return ALL_DIRECTIONS
+    .filter(dir => dir !== blindSpot)
+    .map(dir => ({
+      dir,
+      range: dir === facingDir ? VISION_RANGE.FORWARD : VISION_RANGE.SIDE,
+    }));
 };
 
 /**
  * Calculates direction towards a target coordinate (e.g. fish treat)
- * Returns all 4 isometric directions: UP, DOWN, LEFT, RIGHT
+ * using screen-aligned axes.
  */
 export const getDirectionTowards = (from: GridPos, to: GridPos): Direction => {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
 
   if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx >= 0 ? 'DOWN' : 'UP';
+    return dx >= 0 ? 'RIGHT' : 'LEFT';
   } else {
-    return dy >= 0 ? 'LEFT' : 'RIGHT';
+    return dy >= 0 ? 'DOWN' : 'UP';
   }
 };
 
 /**
- * Determines which directions an observer is actively casting vision rays
- * down right now: 3 directions (everything but its blind spot behind it)
- * normally, or a single direction locked onto an active fish treat.
+ * The rays an observer is actively watching right now: its normal forward and
+ * side rays, or - while a fish treat is out - a single stare locked onto the
+ * fish, since its full attention is on the snack.
  */
-const getActiveVisionDirections = (observer: Penguin, fishTreat?: FishTreat | null): Direction[] => {
+const getActiveVisionRays = (observer: Penguin, fishTreat?: FishTreat | null): VisionRay[] => {
   if (fishTreat && fishTreat.active) {
-    return [getDirectionTowards(observer, fishTreat)];
+    return [{ dir: getDirectionTowards(observer, fishTreat), range: VISION_RANGE.FORWARD }];
   }
-  return getVisibleDirections(observer.direction);
+  return getVisionRays(observer.direction);
 };
 
-export const MAX_VISION_DISTANCE = 2; // Vision radius: max 2 steps away (3x3 box around penguin)
-
 /**
- * Checks if 'target' is visible to 'observer'. A penguin watches 3 of the 4
- * cardinal directions from its cell (FRONT, LEFT, RIGHT - NO BACK VISION),
- * up to MAX_VISION_DISTANCE = 2 tiles (3x3 radius), each ray blocked by the first standing penguin it hits.
+ * Checks if 'target' is visible to 'observer'. A penguin sees 3 tiles straight
+ * ahead, 2 tiles to either side, and nothing behind it. Each ray is blocked by
+ * the first standing penguin it hits.
  */
 export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Penguin[], fishTreat?: FishTreat | null): boolean => {
   if (observer.id === target.id) return false;
@@ -73,25 +95,22 @@ export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Pengu
   const dx = target.x - observer.x;
   const dy = target.y - observer.y;
 
-  // Vision is strictly limited to 3x3 radius (max distance 2 steps)
-  if (Math.abs(dx) > MAX_VISION_DISTANCE || Math.abs(dy) > MAX_VISION_DISTANCE) return false;
-
-  // Must be perfectly aligned on one axis
+  // Must be perfectly aligned on one axis - vision only travels straight
   if (dx !== 0 && dy !== 0) return false;
 
-  return getActiveVisionDirections(observer, fishTreat).some(dir => {
+  return getActiveVisionRays(observer, fishTreat).some(({ dir, range }) => {
     const vector = getVector(dir);
 
     // Must be in this ray's direction
     if (vector.x !== 0 && Math.sign(dx) !== vector.x) return false;
     if (vector.y !== 0 && Math.sign(dy) !== vector.y) return false;
 
-    // Walk ray up to MAX_VISION_DISTANCE (2 steps), stopping at first obstacle
+    // Walk the ray out to its own range, stopping at the first obstacle
     let step = 1;
     let cx = observer.x + vector.x;
     let cy = observer.y + vector.y;
 
-    while (step <= MAX_VISION_DISTANCE && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) {
+    while (step <= range && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) {
       if (cx === target.x && cy === target.y) return true;
       const blocker = allPenguins.find(p => p.x === cx && p.y === cy && !p.isFalling);
       if (blocker) return false;
@@ -105,8 +124,8 @@ export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Pengu
 };
 
 /**
- * Returns all cells currently being watched by penguins (FRONT, LEFT, RIGHT),
- * up to MAX_VISION_DISTANCE = 2 tiles (3x3 radius around penguin).
+ * Returns all cells currently being watched: 3 tiles ahead of each penguin and
+ * 2 tiles to either side, stopping wherever the line of sight is blocked.
  */
 export const getMonitoredCells = (penguins: Penguin[], fishTreat?: FishTreat | null): Set<string> => {
     const monitored = new Set<string>();
@@ -114,13 +133,13 @@ export const getMonitoredCells = (penguins: Penguin[], fishTreat?: FishTreat | n
     penguins.forEach(observer => {
         if (observer.isFalling || observer.isPanic || observer.type === 'SLEEPY') return;
 
-        getActiveVisionDirections(observer, fishTreat).forEach(dir => {
+        getActiveVisionRays(observer, fishTreat).forEach(({ dir, range }) => {
             const vector = getVector(dir);
             let step = 1;
             let cx = observer.x + vector.x;
             let cy = observer.y + vector.y;
 
-            while (step <= MAX_VISION_DISTANCE && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) {
+            while (step <= range && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) {
                 monitored.add(`${cx},${cy}`);
 
                 // Vision blocked by other standing penguins

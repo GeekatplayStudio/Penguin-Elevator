@@ -131,14 +131,14 @@ export const Header: React.FC<HeaderProps> = ({
 );
 
 interface MobileControlsProps {
-  fishCooldownProgress: number; // 0 to 1 (1 = ready)
+  fishCount: number;
   isFishActive: boolean;
   onUseFish: () => void;
   elevatorState: string;
 }
 
 export const MobileControls: React.FC<MobileControlsProps> = ({
-  fishCooldownProgress,
+  fishCount,
   isFishActive,
   onUseFish,
   elevatorState
@@ -168,27 +168,19 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     <div className="pointer-events-auto flex items-center gap-3">
       <motion.button
         onClick={onUseFish}
-        disabled={fishCooldownProgress < 1 || isFishActive}
-        className={`relative overflow-hidden px-6 py-3 font-pixel text-sm flex items-center gap-2.5 border-b-4 rounded-2xl font-bold uppercase tracking-wide transition-all ${
+        disabled={fishCount < 1 || isFishActive}
+        className={`relative px-7 py-3 font-pixel text-sm flex items-center justify-center gap-2.5 border-b-4 rounded-2xl font-bold uppercase tracking-wide transition-all ${
           isFishActive
             ? 'bg-[#fbbf3c] text-[#232a4a] border-[#d97b12] shadow-lg'
-            : fishCooldownProgress >= 1
+            : fishCount >= 1
               ? 'bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] border-[#d97b12] shadow-lg'
               : 'bg-[#2c3a61] text-[#6b7aa0] cursor-not-allowed border-[#1d2b4d]'
         }`}
-        whileHover={fishCooldownProgress >= 1 && !isFishActive ? { scale: 1.05 } : {}}
-        whileTap={fishCooldownProgress >= 1 && !isFishActive ? { scale: 0.95 } : {}}
+        whileHover={fishCount >= 1 && !isFishActive ? { scale: 1.05 } : {}}
+        whileTap={fishCount >= 1 && !isFishActive ? { scale: 0.95 } : {}}
         animate={isFishActive ? { rotate: [0, 6, -6, 0] } : {}}
         transition={isFishActive ? { repeat: Infinity, duration: 0.4 } : {}}
       >
-        {/* COOLDOWN PROGRESS BAR FILL */}
-        {fishCooldownProgress < 1 && !isFishActive && (
-          <motion.div
-            className="absolute left-0 top-0 bottom-0 bg-[#f2901f]/35"
-            animate={{ width: `${fishCooldownProgress * 100}%` }}
-            transition={{ duration: 0.1 }}
-          />
-        )}
         {/* Voxel fish icon, drawn in the same cube style as the penguins */}
         <svg viewBox="0 0 12 8" className="w-7 h-5 relative z-10">
           {[
@@ -201,8 +193,11 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
           ))}
           <rect x={6.04} y={3.04} width={0.92} height={0.92} rx={0.18} fill="#f7f6f2" />
         </svg>
-        <span className="relative z-10">{isFishActive ? 'YUMMY!' : 'TREAT'}</span>
+        <span className="relative z-10 whitespace-nowrap">{isFishActive ? 'YUMMY!' : `FISH ×${fishCount}`}</span>
       </motion.button>
+    </div>
+    <div className="text-[8px] font-pixel text-[#8fa2c0] uppercase tracking-wider bg-[#12213c]/80 px-3 py-1 rounded-lg pointer-events-none">
+      Earn a fish every 10 floors • Tap an empty tile to place it
     </div>
   </div>
 );
@@ -216,7 +211,24 @@ interface GameOverScreenProps {
   onToggleMute: () => void;
 }
 
-export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, onRestart, reason, isMuted, onToggleMute }) => (
+export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, onRestart, reason, isMuted, onToggleMute }) => {
+  const [shared, setShared] = React.useState(false);
+
+  const handleShare = async () => {
+    const date = new Date().toLocaleDateString();
+    const text = `🐧 PENGUIN ELEVATOR 🛗\nI reached floor ${floor} with a score of ${score}!\n📅 ${date}\nCan you beat me?\n— ${COPYRIGHT_NOTICE}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Penguin Elevator - My High Score!', text });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setShared(true);
+        setTimeout(() => setShared(false), 2000);
+      }
+    } catch { /* user cancelled the share sheet */ }
+  };
+
+  return (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 select-none">
     <motion.div
       initial={{ scale: 0.85, opacity: 0, y: 20 }}
@@ -250,6 +262,18 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, on
         </div>
       </div>
 
+      {/* SHARE SCORE SPLASH INFO */}
+      <div className="mb-4 text-[9px] font-pixel text-[#8fa2c0]">
+        {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+      </div>
+
+      <button
+        onClick={handleShare}
+        className="w-full py-3 mb-3 bg-[#24406b] hover:bg-[#2d4d80] text-[#efece2] font-pixel font-bold rounded-2xl border-b-[6px] border-[#12213c] active:translate-y-1 active:border-b-2 text-xs uppercase tracking-widest transition-all"
+      >
+        {shared ? '✓ COPIED TO CLIPBOARD!' : '📤 SHARE SCORE WITH FRIENDS'}
+      </button>
+
       <button
         onClick={onRestart}
         className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
@@ -257,9 +281,11 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, on
         TRY AGAIN
       </button>
       <div className="mt-3 text-[#6b7aa0] text-[9px] font-pixel">PRESS <kbd className="bg-[#24406b] text-[#efece2] px-1.5 py-0.5 rounded">SPACE</kbd> TO RESTART</div>
+      <div className="mt-3 text-[#6b7aa0] text-[8px] font-pixel uppercase tracking-wider">{COPYRIGHT_NOTICE}</div>
     </motion.div>
   </div>
-);
+  );
+};
 
 export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isMuted: boolean; onToggleMute: () => void }> = ({ onStart, highScore, isMuted, onToggleMute }) => (
   <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4 select-none">
@@ -286,8 +312,8 @@ export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isM
         <h3 className="text-[#fbbf3c] font-pixel text-[10px] mb-3 uppercase border-b-2 border-[#2d4d80] pb-2">HOW TO PLAY</h3>
         <ul className="text-[#d8dce8] text-[10px] font-pixel space-y-3 leading-relaxed">
           <li>Drop penguins through trapdoors to clear space.</li>
-          <li><strong className="text-[#e2483d]">RULE:</strong> Penguins watch 3 directions and only miss what's directly behind them - drop only where none can see!</li>
-          <li>Use the <strong className="text-[#f2901f]">TREAT</strong> to make penguins look away.</li>
+          <li><strong className="text-[#e2483d]">RULE:</strong> A penguin sees <strong>3 tiles ahead</strong>, <strong>2 to each side</strong>, and <strong>nothing behind</strong> - drop only where none can see!</li>
+          <li>Earn a <strong className="text-[#f2901f]">FISH</strong> every 10 floors - place it on an empty tile to grab every penguin's attention.</li>
           <li><strong className="text-[#e2483d]">FULL FLOOR = GAME OVER.</strong> Keep making room!</li>
         </ul>
       </div>
