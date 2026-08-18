@@ -32,15 +32,24 @@ Getting caught ends the run.
 | JITTERY | 10% | Wears a red scarf, rotates with a jittery shake animation, sees normally. |
 
 ### Vision System (CRITICAL)
-- Penguins face one of **4 cardinal directions** (`UP`, `DOWN`, `LEFT`,
-  `RIGHT` — mapped to the isometric NW/SE/SW/NE screen directions and shown
-  as ↖ ↘ ↙ ↗ badges).
-- A penguin can only see **straight ahead along the direction it is facing**
-  — nothing to its sides and nothing behind it. This is the "except from the
-  back" rule: a penguin facing right can never notice a drop happening
-  behind it.
-- Vision is a straight ray that stops at the first other standing penguin
-  (line-of-sight is blocked by bodies) or the edge of the grid.
+- Penguins face one of **4 screen-aligned directions** (`UP`, `DOWN`, `LEFT`,
+  `RIGHT`): `DOWN` faces toward the viewer, `UP` away from it, `LEFT`/`RIGHT`
+  to the screen sides. Penguins face the flat **sides** of tiles, never the
+  corners.
+- Vision is **graded by angle** rather than uniform. A penguin watches three
+  rays at different ranges (`VISION_RANGE` in `utils/gameLogic.ts`):
+
+  | Ray | Range | Meaning |
+  |-----|-------|---------|
+  | Forward | 3 tiles | A clear, long look straight ahead |
+  | Both sides | 2 tiles | Only catches things in the corner of its eye |
+  | Behind | 0 tiles | Completely blind — the core stealth rule |
+
+- This is the "except from the back" rule: the direction directly behind a
+  penguin is always safe, while its flanks are risky but shorter-range than
+  its line of sight forward.
+- Each ray stops at the first other standing penguin (line-of-sight is
+  blocked by bodies) or the edge of the grid, whichever comes first.
 - `SLEEPY` penguins never observe anything, regardless of facing direction.
 - A **fish treat** temporarily overrides facing direction: every active
   penguin turns to look toward the treat instead of its normal facing.
@@ -70,7 +79,9 @@ Getting caught ends the run.
 
 ### Fish Treat
 - Distracts every penguin to look toward the treat's tile for a few seconds.
-- Has a cooldown after use, shown as a fill bar on the treat button.
+- Held as an **inventory count** (`fishCount`), not a timed cooldown. The
+  player starts with 1 and earns another every 10 floors climbed; placing a
+  treat spends one. The treat button shows the remaining count.
 
 ### Scoring
 - `+5` per standard drop, `+10` per VIP drop, multiplied by combo (up to 4x)

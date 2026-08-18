@@ -30,40 +30,39 @@ Guide crowded passengers through trapdoors in an ascending 3D voxel elevator whi
 ### 🌟 Key Features
 
 * **3D Voxel Directional Sprites**: High-resolution 3D voxel turnaround sprites (Front, Left, Right, Back).
-* **Realistic FOV & 3x3 Vision Radius**: Penguins watch **Front**, **Left**, and **Right** up to a 3x3 grid radius. The direction **directly behind their back is 100% blind**!
+* **Graded Field of View**: Penguins see **3 tiles straight ahead**, but only **2 tiles to either side** — and the direction **directly behind their back is 100% blind**. Flanks are risky; the back is always safe.
 * **Progressive 10th-Level Scaling**:
   * **Levels 1–10**: Relaxed pacing with generous 4.5-second boarding times and 5.5-second floor travel.
   * **Every 10 Levels**: Elevator speed and rotation frequency increase slightly to challenge experienced players.
-* **Treat Distractions**: Use fish treats to lure penguins into looking away.
+* **Fish Treat Inventory**: Lure penguins into looking away with a fish treat. You start with one and earn another every 10 floors, so each placement is a real decision rather than a cooldown timer.
 * **Responsive Mobile & Desktop Design**: Play on mobile browsers, desktop, or packaged natively for iOS & Android.
 
 ---
 
-## 📱 Mobile App (iOS & Android) Conversion Guide
+## 📱 Mobile App (iOS & Android)
 
-**Penguin Elevator** is architected to easily convert into native mobile apps for iOS (App Store) and Android (Google Play Store) using **Capacitor.js**.
+**Penguin Elevator** converts to native iOS and Android apps with
+**Capacitor**, which wraps the existing `dist/` build in a native shell.
 
-### Step 1: Install Capacitor CLI
+**→ Full step-by-step runbook: [MOBILE_BUILD.md](MOBILE_BUILD.md)**
+
+It covers store accounts and tooling, the prep work below, Capacitor setup,
+icons and splash screens, signing, and both store submissions.
+
+> **⚠️ Read the prep phase before packaging.** `index.html` currently loads
+> Tailwind and the Press Start 2P / Silkscreen fonts from CDNs at runtime.
+> That is fine for a web page and fatal for an app: with no network the game
+> launches unstyled and in the wrong font, and store reviewers do test
+> offline. Phase 2 of the runbook covers making the build self-contained —
+> it must be done first.
+
+Once the prep is complete, the loop is:
+
 ```bash
-npm install @capacitor/core
-npm install -D @capacitor/cli @capacitor/ios @capacitor/android
+npm run build      # web assets -> dist/
+npx cap sync       # dist/ -> native projects
+npx cap open android
 ```
-
-### Step 2: Initialize Capacitor Config
-```bash
-npx cap init "Penguin Elevator" "com.geekatplay.penguinelevator" --web-dir dist
-```
-
-### Step 3: Build Web Assets & Add Native Platforms
-```bash
-npm run build
-npx cap add ios
-npx cap add android
-```
-
-### Step 4: Sync & Launch Native IDEs
-* **iOS**: `npx cap open ios` (Opens Xcode)
-* **Android**: `npx cap open android` (Opens Android Studio)
 
 ---
 
@@ -94,6 +93,12 @@ npx cap add android
 4. **Build production bundle**:
    ```bash
    npm run build
+   ```
+
+5. **Type-check** (the build itself does not type-check — Vite strips types
+   without verifying them, so run this before shipping):
+   ```bash
+   npx tsc --noEmit
    ```
 
 ---

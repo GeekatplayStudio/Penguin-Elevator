@@ -1,8 +1,101 @@
 # Penguin Elevator — Implementation Summary
 
-This replaces the previous summary, which described a 3-direction vision
-system that was never actually implemented in code. The notes below reflect
-what is actually in the repo after the latest graphics/gameplay pass.
+Running notes on what is actually in the repo, newest pass first.
+
+---
+
+# Pass: screen-aligned vision, fish inventory, native readiness
+
+## 1. Facing axes are now screen-aligned, not isometric diagonals
+
+`utils/gameLogic.ts` previously mapped `UP/DOWN/LEFT/RIGHT` onto the
+isometric diagonals (NW/SE/SW/NE), so penguins faced tile *corners*. They now
+face the flat *sides* of tiles:
+
+| Direction | Vector | Reads as |
+|-----------|--------|----------|
+| `DOWN` | `{ x: 0, y: 1 }` | Toward the viewer (front sprite) |
+| `UP` | `{ x: 0, y: -1 }` | Away from the viewer (back sprite) |
+| `LEFT` | `{ x: -1, y: 0 }` | Screen left |
+| `RIGHT` | `{ x: 1, y: 0 }` | Screen right |
+
+This makes "which way is it looking?" legible at a glance, which the
+diagonal mapping never was.
+
+## 2. Vision is graded by angle instead of a uniform radius
+
+Replaced `getVisibleDirections()` (a flat list of watched directions) with
+`getVisionRays()`, returning each ray *and how far it reaches*:
+
+```ts
+export const VISION_RANGE = { FORWARD: 3, SIDE: 2, BACK: 0 } as const;
+```
+
+A penguin gets a clear long look straight ahead, catches only nearby
+movement in the corner of its eye, and remains completely blind behind
+itself. The blind spot is unchanged as the core stealth rule; the flanks are
+now a graded risk rather than binary.
+
+> This supersedes the note in the earlier pass below claiming a penguin
+> "only ever sees along the single direction it's currently facing." That was
+> accurate when written; sides are now watched at shorter range.
+
+## 3. Fish treat is an inventory, not a cooldown
+
+`fishCooldownRemaining` is gone from `GameState`, replaced by `fishCount`.
+The player starts with one treat and earns another every 10 floors; placing
+one spends it. `FISH_COOLDOWN` was removed from `constants.ts`. Turns the
+treat from "wait for the bar to refill" into a resource worth saving.
+
+## 4. New penguin animation states
+
+Added to the `Penguin` type and driven from `App.tsx`:
+
+- `isEntering` — waddle-in animation when a penguin boards
+- `isPushed` — a shove plus spin when a newcomer displaces a neighbour
+- `isDizzy` — a pre-drop wobble before the trapdoor opens
+  (`TIMING.DIZZY_ANIMATION`, 450 ms)
+
+## 5. Toolchain: type checking actually works now
+
+`@types/react` and `@types/react-dom` were missing from the project
+entirely. Because Vite builds with esbuild — which strips types without
+checking them — and `tsconfig.json` leaves `strict`/`noImplicitAny` off,
+`tsc` stayed silent while the editor reported **380 diagnostics**: every JSX
+element as `JSX.IntrinsicElements`-less, every hook callback parameter as
+implicit `any`.
+
+Installing both type packages cleared 379 of them and exposed one real
+defect in `App.tsx`: `nextPenguins` was inferred from a `.map()` that set
+`isPushed`, making the property *required* on the inferred element type, so
+the newly-boarded penguin literal (which omits it) did not fit. Annotated as
+`Penguin[]` so it checks against the actual interface, where `isPushed` is
+optional.
+
+The codebase now passes `tsc --strict` with **0 errors**. Worth adding
+`"strict": true` to `tsconfig.json` to lock that in.
+
+## 6. Mobile packaging runbook
+
+Added [`MOBILE_BUILD.md`](MOBILE_BUILD.md) — an eight-phase guide to shipping
+via Capacitor to both stores. The load-bearing part is the prep phase:
+`index.html` fetches Tailwind and both pixel fonts from CDNs at runtime, plus
+carries a dead `importmap` pointing at `aistudiocdn.com`. Packaged as-is the
+app launches unstyled and in the wrong font whenever there is no network.
+Also flagged: `viewMode` defaults to `MOBILE_SIM`, which would draw a fake
+phone bezel *inside* a real phone.
+
+## 📊 Build status
+
+```
+✓ npx tsc --noEmit          -> no errors
+✓ npx tsc --noEmit --strict -> no errors
+✓ npx vite build            -> 2117 modules, ~375 KB / ~118 KB gzip
+```
+
+---
+
+# Previous pass: graphics & fullscreen fixes
 
 ## ✅ Fixes & Improvements in this pass
 
@@ -65,11 +158,14 @@ what is actually in the repo after the latest graphics/gameplay pass.
 ✓ npx vite build -> 2117 modules transformed, ~379 KB / ~117 KB gzip
 ```
 
-## 🚀 Next Steps (Optional)
+## 🚀 Next Steps
+- Make the web build self-contained (bundle Tailwind + fonts, drop the dead
+  import map) — Phase 2 of [`MOBILE_BUILD.md`](MOBILE_BUILD.md), and a
+  prerequisite for everything else on this list.
 - Real device testing (iOS Safari / Chrome Mobile) for touch feel and
   viewport edge cases (notches, dynamic toolbars).
-- Consider wrapping in Capacitor/Cordova for an actual mobile app build once
-  the web prototype is finalized, per the "target as mobile game, convert
-  later" goal.
+- Wrap in Capacitor for actual store builds, per the "target as mobile game,
+  convert later" goal.
+- Add `"strict": true` to `tsconfig.json` now that the codebase passes it.
 - Tune `TIMING` constants (`constants.ts`) for difficulty pacing once more
   playtesting data is available.
