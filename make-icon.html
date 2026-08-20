@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Make App Icon</title>
+  <style>
+    body { background: #1a1a2e; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px; gap: 20px; }
+    canvas { border: 2px solid #333; }
+    button { background: #4a9eff; color: #fff; border: none; padding: 14px 32px; font-size: 16px; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #2a7edf; }
+    select { padding: 10px; font-size: 14px; background: #222; color: #fff; border: 1px solid #555; border-radius: 6px; }
+    label { font-size: 14px; color: #aaa; }
+  </style>
+</head>
+<body>
+  <h2>Penguin Elevator — App Icon Generator</h2>
+  <div style="display:flex;gap:12px;align-items:center">
+    <label>Sprite:</label>
+    <select id="spriteSelect">
+      <option value="hero.png">hero</option>
+      <option value="front.png">front</option>
+      <option value="happy.png">happy</option>
+      <option value="excited.png">excited</option>
+      <option value="wave.png">wave</option>
+      <option value="jump.png">jump</option>
+      <option value="wink.png">wink</option>
+      <option value="blush.png">blush</option>
+    </select>
+    <label>BG Color:</label>
+    <input type="color" id="bgColor" value="#0b0e14">
+    <label>Scale:</label>
+    <input type="range" id="scale" min="30" max="90" value="65" style="width:100px">
+    <span id="scaleVal">65%</span>
+  </div>
+
+  <canvas id="c" width="1024" height="1024"></canvas>
+  <button onclick="downloadIcon()">Download icon.png (1024×1024)</button>
+
+  <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const select = document.getElementById('spriteSelect');
+    const bgInput = document.getElementById('bgColor');
+    const scaleInput = document.getElementById('scale');
+    const scaleVal = document.getElementById('scaleVal');
+    let img = new Image();
+
+    function draw() {
+      const bg = bgInput.value;
+      const pct = parseInt(scaleInput.value) / 100;
+      scaleVal.textContent = scaleInput.value + '%';
+
+      // Background
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      // Subtle radial glow
+      const grd = ctx.createRadialGradient(512, 512, 100, 512, 512, 600);
+      grd.addColorStop(0, 'rgba(74,158,255,0.12)');
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      if (img.complete && img.naturalWidth > 0) {
+        const size = Math.round(1024 * pct);
+        const x = Math.round((1024 - size) / 2);
+        // Shift slightly up so it feels visually centered
+        const y = Math.round((1024 - size) / 2) - Math.round(size * 0.04);
+        ctx.imageSmoothingEnabled = false; // pixel-art friendly
+        ctx.drawImage(img, x, y, size, size);
+      }
+    }
+
+    function loadSprite() {
+      img = new Image();
+      img.onload = draw;
+      img.src = 'dist/sprites/' + select.value;
+    }
+
+    function downloadIcon() {
+      const link = document.createElement('a');
+      link.download = 'AppIcon-1024.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    select.onchange = loadSprite;
+    bgInput.oninput = draw;
+    scaleInput.oninput = draw;
+
+    loadSprite();
+  </script>
+</body>
+</html>

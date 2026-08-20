@@ -29,3 +29,15 @@ scratch/*
 *.njsproj
 *.sln
 *.sw?
+
+# Native mobile build ignores
+android/app/build/
+android/build/
+android/.gradle/
+ios/App/build/
+ios/App/Pods/
+ios/App/App/public/
+*.keystore
+*.jks
+key.properties
+

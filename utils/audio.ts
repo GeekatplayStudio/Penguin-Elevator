@@ -88,6 +88,18 @@ class AudioController {
     this.musicNodes = [];
   }
 
+  public pauseMusic() {
+    if (this.musicEl) {
+      this.musicEl.pause();
+    }
+  }
+
+  public resumeMusic() {
+    if (this.musicEl && !this.muted) {
+      this.musicEl.play().catch(() => {});
+    }
+  }
+
   // Plays a random game-over track once, replacing the background loop
   public playGameOverMusic() {
     this.stopMusic();

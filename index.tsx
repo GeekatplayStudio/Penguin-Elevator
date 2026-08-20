@@ -1,3 +1,7 @@
+import '@fontsource/silkscreen/400.css';
+import '@fontsource/silkscreen/700.css';
+import '@fontsource/press-start-2p/400.css';
+import './styles.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

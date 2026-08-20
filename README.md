@@ -14,7 +14,6 @@
 ```
 
 [![Geekatplay Studio](https://img.shields.io/badge/Developed%20By-Geekatplay%20Studio-orange.svg)](https://github.com/GeekatplayStudio)
-[![Creator](https://img.shields.io/badge/Created%20By-Vladimir%20Chopine-38bdf8.svg)](https://github.com/GeekatplayStudio)
 [![Version](https://img.shields.io/badge/Version-v3.0.0--mobile-22c55e.svg)](#)
 
 </div>
@@ -23,7 +22,7 @@
 
 ## 🎮 Game Overview
 
-**Penguin Elevator** is an isometric 3D voxel puzzle arcade game developed by **Geekatplay Studio** (created by **Vladimir Chopine**). 
+**Penguin Elevator** is an isometric 3D voxel puzzle arcade game developed by **Geekatplay Studio**. 
 
 Guide crowded passengers through trapdoors in an ascending 3D voxel elevator while dodging the watchful eyes of penguin passengers!
 
@@ -105,6 +104,5 @@ npx cap open android
 
 ## 📜 Credits & Licensing
 
-* **Created & Developed By**: Vladimir Chopine
 * **Studio**: [Geekatplay Studio](https://github.com/GeekatplayStudio)
-* **Copyright**: © Geekatplay Studio by Vladimir Chopine. All rights reserved.
+* **Copyright**: © Geekatplay Studio. All rights reserved.
