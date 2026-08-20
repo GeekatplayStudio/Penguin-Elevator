@@ -590,4 +590,4 @@ The long poles are account verification, Google's closed-testing requirement, an
 
 ---
 
-*Penguin Elevator — Geekatplay Studio (Vladimir Chopine)*
+*Penguin Elevator — Geekatplay Studio*

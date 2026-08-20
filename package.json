@@ -2,8 +2,8 @@
   "name": "penguin-elevator",
   "private": true,
   "version": "3.0.0",
-  "description": "Penguin Elevator - 3D Voxel Arcade Puzzle Game by Geekatplay Studio (Vladimir Chopine)",
-  "author": "Vladimir Chopine (Geekatplay Studio)",
+  "description": "Penguin Elevator - 3D Voxel Arcade Puzzle Game by Geekatplay Studio",
+  "author": "Geekatplay Studio",
   "repository": {
     "type": "git",
     "url": "https://github.com/GeekatplayStudio/Penguin-Elevator.git"
@@ -15,6 +15,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.555.0",
@@ -23,10 +28,17 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@fontsource/press-start-2p": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^3.4.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

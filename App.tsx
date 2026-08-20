@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { Preferences } from '@capacitor/preferences';
 import { GameState, Penguin, FloatingScore } from './types';
 import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR } from './constants';
 import { getRandomDirection, checkDropSafety, rotateAllPenguins, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime, getSpawnDirection, getWallFacingDirection, shouldBoardThisFloor } from './utils/gameLogic';
@@ -26,7 +30,7 @@ function App() {
     fishCount: 1,
     showVisionCones: false,
     isMuted: false,
-    viewMode: 'MOBILE_SIM',
+    viewMode: Capacitor.isNativePlatform() ? 'FULLSCREEN' : 'MOBILE_SIM',
   });
 
   const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
@@ -36,13 +40,34 @@ function App() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load High Score
+  // Load High Score (Preferences with localStorage fallback)
   useEffect(() => {
-    const saved = localStorage.getItem('penguin-elevator-hs');
-    if (saved) {
-      setGameState(prev => ({ ...prev, highScore: parseInt(saved, 10) }));
-    }
+    Preferences.get({ key: 'penguin-elevator-hs' }).then(({ value }) => {
+      if (value) {
+        setGameState(prev => ({ ...prev, highScore: parseInt(value, 10) }));
+      } else {
+        const saved = localStorage.getItem('penguin-elevator-hs');
+        if (saved) {
+          setGameState(prev => ({ ...prev, highScore: parseInt(saved, 10) }));
+        }
+      }
+    });
   }, []);
+
+  // Handle native app lifecycle background/foreground audio pause & resume
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) {
+        audioManager.pauseMusic();
+      } else if (!gameState.isMuted) {
+        audioManager.resumeMusic();
+      }
+    });
+    return () => {
+      sub.then(s => s.remove());
+    };
+  }, [gameState.isMuted]);
 
   // Web Audio Touch Unlock - also kicks off ambient background music on the first gesture
   const musicStartedRef = useRef(false);
@@ -286,6 +311,9 @@ function App() {
 
     if (safe) {
       audioManager.playDropOooh();
+      if (Capacitor.isNativePlatform()) {
+        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+      }
 
       const newCombo = gameState.combo + 1;
       const basePoints = targetPenguin.type === 'VIP' ? 10 : 5;
@@ -329,6 +357,9 @@ function App() {
     } else {
       audioManager.stopMusic();
       audioManager.playScream();
+      if (Capacitor.isNativePlatform()) {
+        Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {});
+      }
 
       setGameState(prev => ({
         ...prev,
@@ -345,6 +376,7 @@ function App() {
         setGameState(prev => {
            const newHigh = Math.max(prev.score, prev.highScore);
            localStorage.setItem('penguin-elevator-hs', newHigh.toString());
+           Preferences.set({ key: 'penguin-elevator-hs', value: newHigh.toString() }).catch(() => {});
            return {
              ...prev,
              phase: 'GAME_OVER',
