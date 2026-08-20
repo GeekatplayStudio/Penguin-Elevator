@@ -212,22 +212,6 @@ interface GameOverScreenProps {
 }
 
 export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, onRestart, reason, isMuted, onToggleMute }) => {
-  const [shared, setShared] = React.useState(false);
-
-  const handleShare = async () => {
-    const date = new Date().toLocaleDateString();
-    const text = `🐧 PENGUIN ELEVATOR 🛗\nI reached floor ${floor} with a score of ${score}!\n📅 ${date}\nCan you beat me?\n— ${COPYRIGHT_NOTICE}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'Penguin Elevator - My High Score!', text });
-      } else {
-        await navigator.clipboard.writeText(text);
-        setShared(true);
-        setTimeout(() => setShared(false), 2000);
-      }
-    } catch { /* user cancelled the share sheet */ }
-  };
-
   return (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 select-none">
     <motion.div
@@ -262,17 +246,10 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, on
         </div>
       </div>
 
-      {/* SHARE SCORE SPLASH INFO */}
+      {/* RUN DATE - shown on the splash, never sent anywhere */}
       <div className="mb-4 text-[9px] font-pixel text-[#8fa2c0]">
         {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
       </div>
-
-      <button
-        onClick={handleShare}
-        className="w-full py-3 mb-3 bg-[#24406b] hover:bg-[#2d4d80] text-[#efece2] font-pixel font-bold rounded-2xl border-b-[6px] border-[#12213c] active:translate-y-1 active:border-b-2 text-xs uppercase tracking-widest transition-all"
-      >
-        {shared ? '✓ COPIED TO CLIPBOARD!' : '📤 SHARE SCORE WITH FRIENDS'}
-      </button>
 
       <button
         onClick={onRestart}

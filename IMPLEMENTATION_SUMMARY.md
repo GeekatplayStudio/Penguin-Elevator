@@ -4,6 +4,90 @@ Running notes on what is actually in the repo, newest pass first.
 
 ---
 
+# Pass: forward-diagonal vision, difficulty curve, tutorial, privacy hardening
+
+## 1. Vision is a 5-ray cone including the forward diagonals
+
+`VISION_RANGE` gained `FORWARD_DIAGONAL`, and `getVisionRays()` now returns
+step *vectors* rather than cardinal directions, so diagonal rays are possible
+at all:
+
+```ts
+export const VISION_RANGE = {
+  FORWARD: 3, FORWARD_DIAGONAL: 3, SIDE: 2, BACK: 0,
+} as const;
+```
+
+From its facing, a penguin watches five rays: forward (3), forward-left and
+forward-right diagonals (3 each), and both sides (2). Everything behind it —
+straight back *and* both back diagonals — is blind.
+
+> This supersedes the previous pass's `{ FORWARD: 3, SIDE: 2, BACK: 0 }`.
+> Diagonals were previously not watched at all, which made detection feel
+> arbitrary: a penguin could be caught by a watcher it was standing diagonally
+> in front of, with no visible reason.
+
+Blocking was reworked into a shared `rayHitsTarget()` walker, so the first
+standing penguin on a ray blocks it — on diagonals exactly as on straight
+rays. `getMonitoredCells()` walks the same rays, so the on-screen overlay and
+the actual detection can no longer disagree.
+
+## 2. Difficulty ramps instead of starting hard
+
+New helpers in `utils/gameLogic.ts`:
+
+| Helper | Effect |
+|---|---|
+| `getWallFacingDirection()` | Faces a penguin at its nearest wall — back exposed, easy to read |
+| `getSpawnDirection()` | Newcomers face a wall 85% of the time early, falling to fully random by ~floor 40 |
+| `shouldBoardThisFloor()` | Skips boarding on even floors up to floor 8, so the room fills at half speed early |
+| `rotateAllPenguins()` | Whole-floor rotation pass that **guarantees at least one turn per level** |
+
+`startGame()` now opens with 3–4 penguins in the *corners*, each facing its
+nearest wall. Timings start slower (6.5s travel, 6.0s boarding) and tighten
+every 10 floors, floored at 3.2s / 2.8s. Per-penguin rotation chance rises
+from 18% to a 65% cap.
+
+`rotateAllPenguins()` exists because pure per-penguin rolls left whole levels
+with no movement at all, which read as a bug. If nobody turns, one non-sleepy
+penguin is forced to — always 90°, never a 180° flip.
+
+## 3. Teaching tint and an illustrated tutorial
+
+Watched tiles carry a soft red tint at full strength through floor 25, fading
+linearly to zero by floor 50 (`teachOpacity` in `components/Grid.tsx`). The
+`V` overlay still forces the strong tint at any floor.
+
+`StartScreen` gained `TUTORIAL_SLIDES` — four auto-rotating illustrated
+slides (drop, vision cone, blocking, fish) drawn with the real tile palette
+and reference-sheet sprites, with dot navigation. **Play is always visible**,
+so the tutorial never gates starting a game.
+
+## 4. Privacy hardening — the game is now provably offline
+
+- **Removed the score-sharing feature entirely.** `navigator.share` and
+  `navigator.clipboard.writeText` are gone from `GameOverScreen`; the splash
+  still shows score, floor, and date, but nothing leaves the device.
+- **Removed the `define` block from `vite.config.ts`**, which injected
+  `GEMINI_API_KEY` into the client bundle. Nothing read it, but anything
+  placed there ships in plaintext to every player.
+
+Audited: no `fetch` / `XHR` / `WebSocket` / `sendBeacon` in app code, no
+analytics or ad SDKs, no permissions in `Info.plist`, and exactly one stored
+value (`penguin-elevator-hs`). Verified at runtime by instrumenting the
+network APIs during play — zero calls. See the privacy posture table in
+`MOBILE_BUILD.md`.
+
+## 5. Merged native packaging from `origin/main`
+
+Capacitor iOS support (lifecycle audio pause/resume, haptics, `Preferences`
+high score), the `ios/` Xcode project, privacy policy, and — importantly —
+offline Tailwind and self-hosted fonts replacing the CDN import map. Gameplay
+files were kept from this branch throughout; branding stays
+"Geekatplay Studio by Vladimir Chopine".
+
+---
+
 # Pass: screen-aligned vision, fish inventory, native readiness
 
 ## 1. Facing axes are now screen-aligned, not isometric diagonals
@@ -78,12 +162,16 @@ The codebase now passes `tsc --strict` with **0 errors**. Worth adding
 ## 6. Mobile packaging runbook
 
 Added [`MOBILE_BUILD.md`](MOBILE_BUILD.md) — an eight-phase guide to shipping
-via Capacitor to both stores. The load-bearing part is the prep phase:
-`index.html` fetches Tailwind and both pixel fonts from CDNs at runtime, plus
-carries a dead `importmap` pointing at `aistudiocdn.com`. Packaged as-is the
-app launches unstyled and in the wrong font whenever there is no network.
+via Capacitor to both stores. The load-bearing part was the prep phase:
+`index.html` fetched Tailwind and both pixel fonts from CDNs at runtime, plus
+carried a dead `importmap` pointing at `aistudiocdn.com`. Packaged as-is the
+app would launch unstyled and in the wrong font whenever there was no network.
 Also flagged: `viewMode` defaults to `MOBILE_SIM`, which would draw a fake
 phone bezel *inside* a real phone.
+
+> **Both are resolved as of the latest pass.** Tailwind and the fonts are
+> bundled at build time, the import map is gone, and `viewMode` now defaults
+> to `FULLSCREEN` on native via `Capacitor.isNativePlatform()`.
 
 ## 📊 Build status
 

@@ -60,19 +60,26 @@ Decide once, because changing them later means starting a new store listing:
 
 ---
 
-## Phase 2 — Make the web build self-contained
+## Phase 2 — Make the web build self-contained ✅ DONE
 
-**This phase is the actual work.** Everything else is mechanical.
+**This phase is complete.** The build is fully offline: no CDN, no Google
+Fonts, no import map. Every asset ships inside the bundle, and the game makes
+zero network requests at runtime.
 
-Right now `index.html` pulls three things off the internet at runtime, which is fine for a web page and fatal for an app: with no signal, your game launches unstyled, in the wrong font — and reviewers may well test it in airplane mode.
+To re-verify at any time, run `npm run build && npx vite preview`, disconnect
+the network, and hard-reload — the game must play identically.
 
-Run `npm run build && npx vite preview`, then kill your network and reload. What you see is what your users would see today.
+The rest of this phase documents how it was wired, for whoever maintains it.
 
-### 2.1 Replace the Tailwind CDN with a real build step
+### 2.1 Tailwind is a build step, not a CDN ✅
 
-`index.html` loads `https://cdn.tailwindcss.com`, which compiles your utility classes in the browser. It is explicitly not for production and it will not exist offline.
+Tailwind v3 runs through PostCSS at build time (`tailwind.config.js`,
+`postcss.config.js`). The old `https://cdn.tailwindcss.com` script is gone from
+`index.html`.
 
-Use Tailwind v3 rather than v4 here: the CDN script *is* v3, so v3 is a like-for-like swap that guarantees identical rendering. Migrating to v4 at the same time as going native means debugging two problems at once.
+v3 was chosen deliberately over v4: the old CDN script *was* v3, so this was a
+like-for-like swap with identical rendering. Migrating to v4 at the same time
+as going native would mean debugging two problems at once.
 
 ```bash
 npm i -D tailwindcss@^3.4 postcss autoprefixer
@@ -109,17 +116,15 @@ Import it at the top of `index.tsx`:
 import './styles.css';
 ```
 
-Then **delete** this line from `index.html`:
+Tailwind's `preflight` reset (inside `@tailwind base`) is the usual source of
+small visual differences — if anything shifts after a Tailwind upgrade, look
+there first.
 
-```html
-<script src="https://cdn.tailwindcss.com"></script>
-```
+### 2.2 Fonts are self-hosted ✅
 
-Rebuild and compare against the CDN version side by side. Tailwind's `preflight` reset (inside `@tailwind base`) is the usual source of small differences — if anything shifts, look there first.
-
-### 2.2 Self-host the fonts
-
-`Press Start 2P` and `Silkscreen` come from Google Fonts over the network. They are the entire visual identity of the game; falling back to generic monospace is not graceful degradation.
+`Press Start 2P` and `Silkscreen` are bundled locally via `@fontsource`, not
+fetched from Google Fonts. They are the entire visual identity of the game;
+falling back to generic monospace is not graceful degradation.
 
 ```bash
 npm i @fontsource/silkscreen @fontsource/press-start-2p
@@ -133,11 +138,15 @@ import '@fontsource/silkscreen/700.css';
 import '@fontsource/press-start-2p/400.css';
 ```
 
-Then delete the three font lines from `index.html` — both `preconnect` hints and the `fonts.googleapis.com` stylesheet link. Keep the inline `<style>` block; it is local and fine.
+The `preconnect` hints and the `fonts.googleapis.com` stylesheet link have been
+removed from `index.html`.
 
-### 2.3 Delete the dead import map
+### 2.3 Import map removed ✅
 
-`index.html` carries an `importmap` pointing every dependency at `aistudiocdn.com`. Vite already bundles these from `node_modules`, so it is inert in the built output — but it is a live CDN reference sitting in your shipped HTML, and it will mislead the next person who reads the file. Delete the whole `<script type="importmap">` block.
+`index.html` previously carried an `importmap` pointing every dependency at
+`aistudiocdn.com`. Vite bundles these from `node_modules`, so it was inert in
+the built output — but it was a live CDN reference sitting in the shipped HTML.
+The whole `<script type="importmap">` block is gone.
 
 ### 2.4 Verify offline
 
@@ -150,9 +159,14 @@ Disconnect the network, hard-reload, and play a full round. Pixel fonts correct,
 
 **Do not move to Phase 4 until this passes.** A Capacitor shell has no network by definition on a plane, and debugging CSS through Xcode is far more painful than debugging it here.
 
-### 2.5 Optional cleanup
+### 2.5 Secret-injection footgun removed ✅
 
-`vite.config.ts` defines `process.env.API_KEY` and `process.env.GEMINI_API_KEY` from a `GEMINI_API_KEY` env var. Nothing in the codebase reads either one. Remove the `define` block — dead config that injects env vars into a client bundle is a footgun, and anything you put there ships in plaintext to every user.
+`vite.config.ts` used to define `process.env.API_KEY` and
+`process.env.GEMINI_API_KEY` from a `GEMINI_API_KEY` env var. Nothing read
+them, and the `define` block is now deleted.
+
+Keep it that way: anything placed in `define` is inlined into the client bundle
+in plaintext and ships to every player. This game needs no keys or secrets.
 
 ---
 
@@ -550,9 +564,18 @@ Worth adding to `package.json` now:
 
 **Web build**
 
-- [ ] No `cdn.tailwindcss.com`, no `fonts.googleapis.com`, no `importmap` in `index.html`
-- [ ] A full round plays correctly with the network off
-- [ ] `npx tsc --noEmit` clean
+- [x] No `cdn.tailwindcss.com`, no `fonts.googleapis.com`, no `importmap` in `index.html`
+- [x] A full round plays correctly with the network off
+- [x] `npx tsc --noEmit` clean
+- [x] No `define` block in `vite.config.ts` injecting env vars into the bundle
+
+**Privacy (audited — see "Privacy posture" below)**
+
+- [x] No `fetch` / `XMLHttpRequest` / `WebSocket` / `sendBeacon` in app code
+- [x] No analytics, ads, or tracking SDKs in `package.json` or source
+- [x] No sharing, messaging, social, leaderboard, or multiplayer features
+- [x] No permission usage-description keys in `Info.plist`
+- [x] Only one stored value (`penguin-elevator-hs`), on-device, never sent
 
 **Native behaviour**
 
@@ -572,6 +595,40 @@ Worth adding to `package.json` now:
 - [ ] Data safety and App Privacy both declare no collection
 - [ ] Keystore backed up in two places
 - [ ] `versionCode` / build number incremented
+
+---
+
+## Privacy posture
+
+Audited against the full source tree and the built `dist/` bundle. The game is
+**fully offline and collects nothing**, which makes the store privacy forms
+trivial to fill in honestly.
+
+**Answer "Data Not Collected" for every App Store / Data Safety category.** No
+ATT prompt is needed, because there is no tracking to request permission for.
+
+| Area | Status |
+|---|---|
+| Network requests | None. No `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, or `EventSource` in app code. No API endpoints or CDN references. |
+| Assets | All bundled locally — sprites, audio, and both pixel fonts. The game runs in airplane mode. |
+| Analytics / ads / tracking | None. No GA, Firebase, Sentry, Mixpanel, AppsFlyer, AdMob, or IDFA. |
+| Accounts | None. No login, registration, email, or user profile. |
+| Sharing / social | None. No share sheet, clipboard write, leaderboard, friend list, multiplayer, or `mailto:` / `sms:` / deep links. |
+| Stored data | Exactly one key, `penguin-elevator-hs`, holding the high-score integer. Written to `UserDefaults` via `@capacitor/preferences` with a `localStorage` fallback. Never transmitted; removed on uninstall. |
+| Device identifiers | None. The `uuid` values in `App.tsx` are ephemeral in-memory React keys for penguins — regenerated each session, never persisted or sent. |
+| Permissions | None. `Info.plist` declares no `NS*UsageDescription` keys, no URL schemes, no ATS exceptions, and no entitlements file exists. |
+| Native plugins | Four, all local-only: App (lifecycle), Haptics, Preferences, SplashScreen. |
+| Encryption | `ITSAppUsesNonExemptEncryption` is `false`. |
+
+`@capacitor/core` ships a `CapacitorHttp` implementation inside its bundle, but
+it is never imported or invoked, and the plugin is not enabled in
+`capacitor.config.ts`. Vite's `modulepreload` polyfill likewise only fetches
+same-origin files from the app's own bundle. Neither results in outbound
+traffic.
+
+**If you add anything network-facing later** — a leaderboard, ads, crash
+reporting, cloud saves — this section, `privacy-policy.md`, and the store
+privacy answers must all be updated together before shipping.
 
 ---
 
