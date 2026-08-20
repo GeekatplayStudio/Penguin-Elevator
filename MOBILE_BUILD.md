@@ -562,6 +562,21 @@ cd android && ./gradlew bundleRelease   # upload the .aab to Play Console
 npx cap open ios                        # Product > Archive > Distribute
 ```
 
+**This step is easy to skip and Xcode will not stop you.** If App Store
+Connect shows the old version number after a fresh upload, that is not a
+caching issue — it means the archive genuinely still has the old version
+baked in, because step 1 was missed. Check
+`ios/App/App.xcodeproj/project.pbxproj` for `MARKETING_VERSION` (the "Version"
+field, e.g. `1.1`) and `CURRENT_PROJECT_VERSION` (the "Build" field, e.g.
+`2`) — both must change in **both** the Debug and Release build configs
+(there are two of each key in the file). The same fields are editable
+directly in Xcode under the App target's **General → Identity** section if
+you prefer not to hand-edit the project file.
+
+Apple requires every uploaded build to have a version+build combination it
+has not seen before, so bump the build number even on a point release that
+only changes the marketing version.
+
 Worth adding to `package.json` now:
 
 ```json
