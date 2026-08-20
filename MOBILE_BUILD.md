@@ -513,7 +513,22 @@ Processing takes 10–60 minutes, then the build appears in TestFlight. Install 
 
 ### 7.6 Fill in App Store Connect
 
-- **Screenshots** — required for the largest iPhone sizes. App Store Connect states the exact pixel dimensions it currently wants, and Apple changes them. Add iPad sizes only if you mark the app iPad-compatible
+- **Screenshots** — required for the largest iPhone sizes. App Store Connect states the exact pixel dimensions it currently wants, and Apple changes them.
+
+  This project ships **iPhone-only**: `TARGETED_DEVICE_FAMILY` is set to `1`
+  (iPhone) in both build configs in `App.xcodeproj/project.pbxproj`, with no
+  `2` (iPad) or `4` (Apple Watch). App Store Connect derives which device
+  screenshot slots it requires from the binary's device family, so as long as
+  that stays `1`, it will never ask for iPad or Apple Watch screenshots.
+
+  If "Unable to Add for Review" ever demands an iPad (or Watch) screenshot
+  anyway, check two things: (1) `TARGETED_DEVICE_FAMILY` didn't get reset back
+  to `"1,2"` by Xcode (it can happen if you toggle iPad support in the target's
+  **General → Supported Destinations** UI — the checkbox writes straight to
+  this key), and (2) archive and re-upload a fresh build, since App Store
+  Connect reads the family from the binary you uploaded, not from source —
+  editing the project alone does not retroactively fix a build already sitting
+  in App Store Connect.
 - **App Privacy** — same story as Play: no collection, no tracking. Answer the questionnaire and the nutrition label comes out empty
 - **Age rating** — Apple's own questionnaire, separate from IARC
 - **Privacy policy URL** — required
