@@ -28,10 +28,20 @@ A step-by-step runbook for turning this Vite + React web game into native apps o
 
 | Target | You need | Notes |
 | --- | --- | --- |
-| Android | Android Studio + JDK 17 | Works on your Windows machine |
+| Android | Android Studio (bundles its own JDK) | Works on your Windows machine |
 | iOS | A Mac + Xcode + CocoaPods | **Cannot be done on Windows** |
 
-Android Studio installs the SDK, platform tools and an emulator. Accept the SDK licenses on first launch.
+Android Studio installs the SDK, platform tools and an emulator, and ships its
+own bundled JDK (JetBrains Runtime) that Gradle uses automatically — you do
+not need to install a JDK yourself for the normal Android Studio workflow.
+Accept the SDK licenses on first launch.
+
+**Building from a terminal instead of Android Studio (`./gradlew ...`
+directly, or CI)?** Capacitor 8's Android module requires **JDK 21** to
+compile — JDK 17 fails with `invalid source release: 21`. Point `JAVA_HOME` at
+a JDK 21 (Android Studio's own bundled one works: typically
+`<Android Studio install dir>/jbr`, or install Microsoft/Temurin JDK 21
+separately) before running Gradle outside the IDE.
 
 **On the iOS problem.** There is no legal way to build and sign an iOS app from Windows. Your options:
 
@@ -343,12 +353,24 @@ This creates `android/` and `ios/` — real native projects. **Commit them.** Th
 Burn this into muscle memory. Capacitor copies `dist/` into the native projects; it does not build for you.
 
 ```bash
-npm run build      # web assets -> dist/
-npx cap sync       # dist/ -> native projects, plus plugin wiring
+npm run build            # web assets -> dist/
+npx cap sync android     # dist/ -> android/, plus plugin wiring
 npx cap open android
 ```
 
 Run `sync` after every plugin install. `npx cap copy` alone is enough when only web code changed.
+
+**Always pass a platform name (`android` or `ios`) to `sync` — never run it
+bare.** A bare `npx cap sync` touches *both* platforms in one pass, and on
+Windows this has a real, observed bug: it regenerates
+`ios/App/CapApp-SPM/Package.swift` with **backslash** path separators instead
+of forward slashes, which breaks Swift Package Manager resolution the next
+time that file is opened in Xcode on the Mac. If this ever happens, the fix is
+`git checkout -- ios/App/CapApp-SPM/Package.swift` to restore the
+forward-slash paths, then re-run only `npx cap sync ios`, from the Mac, where
+the path separator is native. The `npm run android` / `npm run ios` scripts in
+`package.json` are already scoped to one platform each specifically to avoid
+this.
 
 ### 4.5 Add to .gitignore
 
@@ -400,8 +422,7 @@ SplashScreen.hide();
 Enable Developer Options → USB debugging on the phone, plug it in, then:
 
 ```bash
-npm run build && npx cap sync
-npx cap open android
+npm run android    # build -> sync android -> open Android Studio
 ```
 
 Press Run in Android Studio and play a full round. Check: portrait lock, safe areas, audio, back button, high score surviving a force-quit, and the whole thing in airplane mode.
@@ -477,8 +498,7 @@ Everything here requires macOS.
 ### 7.1 Open the project
 
 ```bash
-npm run build && npx cap sync
-npx cap open ios
+npm run ios    # build -> sync ios -> open Xcode
 ```
 
 ### 7.2 Configure signing
@@ -552,10 +572,12 @@ Every release, in order:
 #    android/app/build.gradle  -> versionCode (+1) and versionName
 #    Xcode target > General    -> Version and Build (+1)
 
-# 2. build and sync
+# 2. build, typecheck, and sync each platform separately - never a bare
+#    `npx cap sync` (see the warning in 4.4 about the Windows path bug)
 npx tsc --noEmit
 npm run build
-npx cap sync
+npx cap sync android
+npx cap sync ios     # macOS only
 
 # 3. ship
 cd android && ./gradlew bundleRelease   # upload the .aab to Play Console
@@ -577,14 +599,13 @@ Apple requires every uploaded build to have a version+build combination it
 has not seen before, so bump the build number even on a point release that
 only changes the marketing version.
 
-Worth adding to `package.json` now:
+Already in `package.json`, each scoped to its own platform on purpose:
 
 ```json
 "scripts": {
   "typecheck": "tsc --noEmit",
-  "mobile": "npm run build && npx cap sync",
-  "android": "npm run mobile && npx cap open android",
-  "ios": "npm run mobile && npx cap open ios"
+  "android": "npm run build && npx cap sync android && npx cap open android",
+  "ios": "npm run build && npx cap sync ios && npx cap open ios"
 }
 ```
 
@@ -646,9 +667,10 @@ ATT prompt is needed, because there is no tracking to request permission for.
 | Sharing / social | None. No share sheet, clipboard write, leaderboard, friend list, multiplayer, or `mailto:` / `sms:` / deep links. |
 | Stored data | Exactly one key, `penguin-elevator-hs`, holding the high-score integer. Written to `UserDefaults` via `@capacitor/preferences` with a `localStorage` fallback. Never transmitted; removed on uninstall. |
 | Device identifiers | None. The `uuid` values in `App.tsx` are ephemeral in-memory React keys for penguins — regenerated each session, never persisted or sent. |
-| Permissions | None. `Info.plist` declares no `NS*UsageDescription` keys, no URL schemes, no ATS exceptions, and no entitlements file exists. |
+| Permissions (iOS) | None. `Info.plist` declares no `NS*UsageDescription` keys, no URL schemes, no ATS exceptions, and no entitlements file exists. |
+| Permissions (Android) | Only `android.permission.INTERNET`, which Capacitor's template adds by default and which the OS requires for *any* WebView to render local content — it is not requested for and does not enable outbound calls to anything, since the app makes none. No other permission (storage, network state, etc.) is declared. Safe to answer "no data collected, no sensitive permissions" on the Play Data Safety form. |
 | Native plugins | Four, all local-only: App (lifecycle), Haptics, Preferences, SplashScreen. |
-| Encryption | `ITSAppUsesNonExemptEncryption` is `false`. |
+| Encryption | `ITSAppUsesNonExemptEncryption` is `false` (iOS). Android has no equivalent declaration required for an app with no encryption beyond the OS defaults. |
 
 `@capacitor/core` ships a `CapacitorHttp` implementation inside its bundle, but
 it is never imported or invoked, and the plugin is not enabled in

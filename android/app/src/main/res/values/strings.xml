@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Penguin Elevator</string>
+    <string name="title_activity_main">Penguin Elevator</string>
+    <string name="package_name">com.geekatplay.penguinelevator</string>
+    <string name="custom_url_scheme">com.geekatplay.penguinelevator</string>
+</resources>

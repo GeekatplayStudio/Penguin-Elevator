@@ -69,6 +69,24 @@ function App() {
     };
   }, [gameState.isMuted]);
 
+  // Android hardware back button: return to the menu from a game in
+  // progress rather than silently killing the app; exit only from the menu.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = CapApp.addListener('backButton', () => {
+      setGameState(prev => {
+        if (prev.phase === 'PLAYING' || prev.phase === 'GAME_OVER') {
+          return { ...prev, phase: 'START_MENU' };
+        }
+        CapApp.exitApp();
+        return prev;
+      });
+    });
+    return () => {
+      sub.then(s => s.remove());
+    };
+  }, []);
+
   // Web Audio Touch Unlock - also kicks off ambient background music on the first gesture
   const musicStartedRef = useRef(false);
   useEffect(() => {
