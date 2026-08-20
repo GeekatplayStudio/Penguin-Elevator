@@ -93,6 +93,15 @@ npx cap open android
    npm run dev
    ```
 
+   Serves on **port 3000** by default. If that port is busy the server does
+   **not** fail — it walks upward to the next free one (3001, 3002, …) and
+   prints the URL it actually chose, so always use the address in the console
+   output. To pin a specific port, set `PORT`:
+
+   ```bash
+   PORT=8080 npm run dev
+   ```
+
 4. **Build production bundle**:
    ```bash
    npm run build
