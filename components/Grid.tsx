@@ -34,6 +34,7 @@ interface SquareTileProps {
   isOpen: boolean;
   isMonitored: boolean;
   showVision: boolean;
+  teachOpacity: number; // training-wheels tint strength, fades out by floor 50
   onClick: () => void;
   children?: React.ReactNode;
 }
@@ -44,6 +45,7 @@ const SquareTile: React.FC<SquareTileProps> = ({
   isOpen,
   isMonitored,
   showVision,
+  teachOpacity,
   onClick,
   children
 }) => {
@@ -99,9 +101,10 @@ const SquareTile: React.FC<SquareTileProps> = ({
             {/* Tile border */}
             <rect x={0.5} y={0.5} width={TILE_W - 1} height={TILE_H - 1} fill="none" stroke={seamColor} strokeWidth="1.5" />
 
-            {/* WATCHED-CELL TINT - shows where penguin vision covers */}
-            {isMonitored && showVision && (
-              <rect x={2} y={2} width={TILE_W - 4} height={TILE_H - 4} fill="#e2483d" opacity={0.22} rx={4} />
+            {/* WATCHED-CELL TINT - teaches vision on the first ~25 floors,
+                fades away by floor 50; the V overlay brings it back strong */}
+            {isMonitored && (showVision || teachOpacity > 0.01) && (
+              <rect x={2} y={2} width={TILE_W - 4} height={TILE_H - 4} fill="#e2483d" opacity={showVision ? 0.35 : teachOpacity} rx={4} />
             )}
           </g>
         ) : (
@@ -137,6 +140,11 @@ export const Grid: React.FC<GridProps> = ({
 }) => {
   const [hoveredPenguinId, setHoveredPenguinId] = useState<string | null>(null);
   const isMoving = gameState.elevatorState === 'MOVING';
+
+  // Training wheels: watched tiles glow softly on early floors so players
+  // learn how penguins see, then the hint fades out between floors 25-50.
+  const floor = gameState.floor;
+  const teachOpacity = floor <= 25 ? 0.14 : floor <= 50 ? 0.14 * (1 - (floor - 25) / 25) : 0;
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-visible">
@@ -196,6 +204,7 @@ export const Grid: React.FC<GridProps> = ({
                 isOpen={isTrapdoorOpen}
                 isMonitored={isMonitored}
                 showVision={gameState.showVisionCones}
+                teachOpacity={teachOpacity}
                 onClick={() => {
                   if (penguin) {
                     onDrop(penguin.id);

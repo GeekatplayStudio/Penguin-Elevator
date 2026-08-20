@@ -22,35 +22,41 @@ const ALL_DIRECTIONS: Direction[] = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 /**
  * How far a penguin sees along each ray, by where that ray sits relative to
- * its facing: straight ahead it has a clear long look, to the sides it only
- * catches things in the corner of its eye, and behind it sees nothing at all.
+ * its facing: a long clear look straight ahead and along both forward
+ * diagonals, a short glance to each side, and nothing at all behind it
+ * (back, back-left, and back-right are all blind).
  */
 export const VISION_RANGE = {
   FORWARD: 3,
+  FORWARD_DIAGONAL: 3,
   SIDE: 2,
   BACK: 0,
 } as const;
 
 export const MAX_VISION_DISTANCE = VISION_RANGE.FORWARD; // Longest possible ray
 
-/** A ray a penguin is currently watching, with how far down it can see. */
+/** A ray a penguin is currently watching: a step vector and how far it sees. */
 export interface VisionRay {
-  dir: Direction;
+  dx: number;
+  dy: number;
   range: number;
 }
 
 /**
- * The rays a penguin watches given where it's facing: forward at full range,
- * both sides at the shorter range, and nothing behind it.
+ * The 5 rays a penguin watches given its facing: forward (3), forward-left and
+ * forward-right diagonals (3), left and right sides (2). Behind - including
+ * both back diagonals - it sees nothing.
  */
 export const getVisionRays = (facingDir: Direction): VisionRay[] => {
-  const blindSpot = OPPOSITE_DIRECTION[facingDir];
-  return ALL_DIRECTIONS
-    .filter(dir => dir !== blindSpot)
-    .map(dir => ({
-      dir,
-      range: dir === facingDir ? VISION_RANGE.FORWARD : VISION_RANGE.SIDE,
-    }));
+  const f = getVector(facingDir);              // forward unit vector
+  const r = { x: -f.y, y: f.x };               // perpendicular (side) unit vector
+  return [
+    { dx: f.x, dy: f.y, range: VISION_RANGE.FORWARD },
+    { dx: f.x + r.x, dy: f.y + r.y, range: VISION_RANGE.FORWARD_DIAGONAL },
+    { dx: f.x - r.x, dy: f.y - r.y, range: VISION_RANGE.FORWARD_DIAGONAL },
+    { dx: r.x, dy: r.y, range: VISION_RANGE.SIDE },
+    { dx: -r.x, dy: -r.y, range: VISION_RANGE.SIDE },
+  ];
 };
 
 /**
@@ -75,15 +81,41 @@ export const getDirectionTowards = (from: GridPos, to: GridPos): Direction => {
  */
 const getActiveVisionRays = (observer: Penguin, fishTreat?: FishTreat | null): VisionRay[] => {
   if (fishTreat && fishTreat.active) {
-    return [{ dir: getDirectionTowards(observer, fishTreat), range: VISION_RANGE.FORWARD }];
+    const v = getVector(getDirectionTowards(observer, fishTreat));
+    return [{ dx: v.x, dy: v.y, range: VISION_RANGE.FORWARD }];
   }
   return getVisionRays(observer.direction);
 };
 
 /**
+ * Walks one vision ray cell by cell. Returns true if the target cell is
+ * reached before the ray runs out or hits a standing penguin - blocking works
+ * on the forward, side, AND diagonal rays alike.
+ */
+const rayHitsTarget = (
+  observer: Penguin,
+  ray: VisionRay,
+  targetX: number,
+  targetY: number,
+  allPenguins: Penguin[]
+): boolean => {
+  let cx = observer.x + ray.dx;
+  let cy = observer.y + ray.dy;
+
+  for (let step = 1; step <= ray.range && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE; step++) {
+    if (cx === targetX && cy === targetY) return true;
+    const blocker = allPenguins.find(p => p.x === cx && p.y === cy && !p.isFalling);
+    if (blocker) return false;
+    cx += ray.dx;
+    cy += ray.dy;
+  }
+  return false;
+};
+
+/**
  * Checks if 'target' is visible to 'observer'. A penguin sees 3 tiles straight
- * ahead, 2 tiles to either side, and nothing behind it. Each ray is blocked by
- * the first standing penguin it hits.
+ * ahead, 3 along each forward diagonal, 2 to either side - and nothing behind
+ * it. Each ray is blocked by the first standing penguin it hits.
  */
 export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Penguin[], fishTreat?: FishTreat | null): boolean => {
   if (observer.id === target.id) return false;
@@ -92,40 +124,15 @@ export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Pengu
   // SLEEPY penguins do not observe anything while in elevator
   if (observer.type === 'SLEEPY') return false;
 
-  const dx = target.x - observer.x;
-  const dy = target.y - observer.y;
-
-  // Must be perfectly aligned on one axis - vision only travels straight
-  if (dx !== 0 && dy !== 0) return false;
-
-  return getActiveVisionRays(observer, fishTreat).some(({ dir, range }) => {
-    const vector = getVector(dir);
-
-    // Must be in this ray's direction
-    if (vector.x !== 0 && Math.sign(dx) !== vector.x) return false;
-    if (vector.y !== 0 && Math.sign(dy) !== vector.y) return false;
-
-    // Walk the ray out to its own range, stopping at the first obstacle
-    let step = 1;
-    let cx = observer.x + vector.x;
-    let cy = observer.y + vector.y;
-
-    while (step <= range && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) {
-      if (cx === target.x && cy === target.y) return true;
-      const blocker = allPenguins.find(p => p.x === cx && p.y === cy && !p.isFalling);
-      if (blocker) return false;
-
-      cx += vector.x;
-      cy += vector.y;
-      step++;
-    }
-    return false;
-  });
+  return getActiveVisionRays(observer, fishTreat).some(ray =>
+    rayHitsTarget(observer, ray, target.x, target.y, allPenguins)
+  );
 };
 
 /**
- * Returns all cells currently being watched: 3 tiles ahead of each penguin and
- * 2 tiles to either side, stopping wherever the line of sight is blocked.
+ * Returns all cells currently being watched: 3 tiles ahead of each penguin,
+ * 3 along each forward diagonal, and 2 to either side - stopping wherever
+ * the line of sight is blocked by another standing penguin.
  */
 export const getMonitoredCells = (penguins: Penguin[], fishTreat?: FishTreat | null): Set<string> => {
     const monitored = new Set<string>();
@@ -133,22 +140,19 @@ export const getMonitoredCells = (penguins: Penguin[], fishTreat?: FishTreat | n
     penguins.forEach(observer => {
         if (observer.isFalling || observer.isPanic || observer.type === 'SLEEPY') return;
 
-        getActiveVisionRays(observer, fishTreat).forEach(({ dir, range }) => {
-            const vector = getVector(dir);
-            let step = 1;
-            let cx = observer.x + vector.x;
-            let cy = observer.y + vector.y;
+        getActiveVisionRays(observer, fishTreat).forEach(ray => {
+            let cx = observer.x + ray.dx;
+            let cy = observer.y + ray.dy;
 
-            while (step <= range && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) {
+            for (let step = 1; step <= ray.range && cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE; step++) {
                 monitored.add(`${cx},${cy}`);
 
                 // Vision blocked by other standing penguins
                 const blocker = penguins.find(p => p.x === cx && p.y === cy && !p.isFalling);
                 if (blocker) break;
 
-                cx += vector.x;
-                cy += vector.y;
-                step++;
+                cx += ray.dx;
+                cy += ray.dy;
             }
         });
     });
@@ -198,27 +202,78 @@ export const getFloorTier = (floor: number): number => {
 
 export const getRotationChance = (floor: number, pType: PenguinTypeVariant): number => {
   const tier = getFloorTier(floor);
-  let baseChance = 0.25 + (tier * 0.08); // 25% base on levels 1-10 + 8% per 10 levels
-  baseChance = Math.min(0.70, baseChance);
+  // Calm start: light rotation on floors 1-10, then increasingly restless
+  let baseChance = 0.18 + (tier * 0.08);
+  baseChance = Math.min(0.65, baseChance);
 
   if (pType === 'SLEEPY') return baseChance * 0.25;
-  if (pType === 'JITTERY') return Math.min(0.85, baseChance * 1.5);
+  if (pType === 'JITTERY') return Math.min(0.80, baseChance * 1.5);
 
   return baseChance;
 };
 
 export const getMoveTime = (floor: number): number => {
   const tier = getFloorTier(floor);
-  const baseTime = 5500; // 5.5s for levels 1-10 (Slow, comfortable transition)
-  const reduced = baseTime - (tier * 400);
-  return Math.max(3000, reduced); // Minimum 3.0s
+  const baseTime = 6500; // Very relaxed ride between floors 1-10
+  const reduced = baseTime - (tier * 350);
+  return Math.max(3200, reduced); // Never faster than 3.2s - quick but playable
 };
 
 export const getBoardingTime = (floor: number): number => {
   const tier = getFloorTier(floor);
-  const baseTime = 4500; // 4.5s for levels 1-10 (Generous time to plan & click)
-  const reduced = baseTime - (tier * 300);
-  return Math.max(2500, reduced); // Minimum 2.5s
+  const baseTime = 6000; // Long open-door pause on floors 1-10 to plan & tap
+  const reduced = baseTime - (tier * 350);
+  return Math.max(2800, reduced); // Never faster than 2.8s
+};
+
+/**
+ * On early floors the elevator takes on passengers only every OTHER floor,
+ * giving new players breathing room. From floor 9 up, someone boards on every
+ * floor.
+ */
+export const shouldBoardThisFloor = (floor: number, penguinCount: number): boolean => {
+  if (penguinCount === 0) return true;        // never leave the floor empty
+  if (floor <= 8 && floor % 2 === 0) return false;
+  return true;
+};
+
+/**
+ * Direction facing the nearest wall from a cell - a penguin staring at the
+ * wall has its whole back to the room, making it an easy, readable target.
+ */
+export const getWallFacingDirection = (pos: GridPos): Direction => {
+  const options: { dir: Direction; dist: number }[] = [
+    { dir: 'LEFT', dist: pos.x },
+    { dir: 'RIGHT', dist: GRID_SIZE - 1 - pos.x },
+    { dir: 'UP', dist: pos.y },
+    { dir: 'DOWN', dist: GRID_SIZE - 1 - pos.y },
+  ];
+  const minDist = Math.min(...options.map(o => o.dist));
+  const nearest = options.filter(o => o.dist === minDist);
+  return nearest[Math.floor(Math.random() * nearest.length)].dir;
+};
+
+/**
+ * Spawn facing with a difficulty curve: on the first floors most newcomers
+ * predictably stare at the nearest wall (easy to read, easy to drop safely);
+ * higher up, facing becomes more and more random.
+ */
+export const getSpawnDirection = (pos: GridPos, floor: number): Direction => {
+  const tier = getFloorTier(floor);
+  const wallChance = Math.max(0, 0.85 - tier * 0.25); // 85% -> 60% -> 35% -> 10% -> 0%
+  if (Math.random() < wallChance) {
+    return getWallFacingDirection(pos);
+  }
+  return getRandomDirection();
+};
+
+/** Always turns 90° to a random adjacent side (never a corner, never 180°). */
+export const forceRotate = (currentDir: Direction): Direction => {
+  const dirs: Direction[] = ['DOWN', 'RIGHT', 'UP', 'LEFT']; // 90° cycle around the 4 sides
+  const currentIndex = dirs.indexOf(currentDir);
+  const turn = Math.random() > 0.5 ? 1 : -1;
+  const newIndex = (currentIndex + turn + dirs.length) % dirs.length;
+  return dirs[newIndex];
 };
 
 export const rotatePenguin = (currentDir: Direction, pType: PenguinTypeVariant, floor: number = 1): Direction => {
@@ -229,13 +284,31 @@ export const rotatePenguin = (currentDir: Direction, pType: PenguinTypeVariant, 
     return currentDir;
   }
 
-  const dirs: Direction[] = ['DOWN', 'RIGHT', 'UP', 'LEFT']; // Clockwise isometric sequence around 4 sides
-  const currentIndex = dirs.indexOf(currentDir);
+  return forceRotate(currentDir);
+};
 
-  // Rotate to next direction randomly clockwise or counter-clockwise
-  const turn = Math.random() > 0.5 ? 1 : -1;
-  let newIndex = (currentIndex + turn + dirs.length) % dirs.length;
-  return dirs[newIndex];
+/**
+ * Rotation pass for a whole floor: every penguin rolls its own chance, but at
+ * least ONE penguin is guaranteed to turn each level so the board always
+ * changes and rotation stays visible. Sleepy penguins are exempt from the
+ * forced turn (they're asleep), unless they're all that's left.
+ */
+export const rotateAllPenguins = (penguins: Penguin[], floor: number): Penguin[] => {
+  const rotated = penguins.map(p => ({
+    ...p,
+    direction: p.isFalling ? p.direction : rotatePenguin(p.direction, p.type, floor),
+  }));
+
+  const anyTurned = rotated.some((p, i) => p.direction !== penguins[i].direction);
+  if (!anyTurned) {
+    const candidates = rotated.filter(p => !p.isFalling && p.type !== 'SLEEPY');
+    const pool = candidates.length > 0 ? candidates : rotated.filter(p => !p.isFalling);
+    if (pool.length > 0) {
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      return rotated.map(p => p.id === chosen.id ? { ...p, direction: forceRotate(p.direction) } : p);
+    }
+  }
+  return rotated;
 };
 
 export const findEmptyCell = (penguins: Penguin[]): GridPos | null => {

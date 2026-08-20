@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye } from './Icons';
 import { APP_VERSION, STUDIO_NAME, AUTHOR_NAME, COPYRIGHT_NOTICE } from '../constants';
 import { PenguinIcon } from './Penguin';
@@ -287,56 +287,206 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, on
   );
 };
 
-export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isMuted: boolean; onToggleMute: () => void }> = ({ onStart, highScore, isMuted, onToggleMute }) => (
-  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4 select-none">
+/* ============================================================
+   ILLUSTRATED HOW-TO-PLAY SLIDES
+   Mini board diagrams drawn with the real tile palette + sprites
+   ============================================================ */
+
+const MT = 40; // mini-tile size in the tutorial diagrams
+
+/** One mini checkerboard tile, optionally tinted (danger/safe). */
+const MiniTile: React.FC<{ x: number; y: number; tint?: 'danger' | 'side' | 'safe'; hole?: boolean }> = ({ x, y, tint, hole }) => {
+  const isAlt = (x + y) % 2 === 1;
+  return (
+    <g>
+      <rect x={x * MT} y={y * MT} width={MT} height={MT} fill={hole ? '#0a1024' : isAlt ? '#33322e' : '#efece2'} stroke={isAlt ? '#211f1d' : '#d6d2c5'} strokeWidth="1" />
+      {hole && <ellipse cx={x * MT + MT / 2} cy={y * MT + MT / 2} rx={11} ry={7} fill="#38bdf8" opacity={0.45} />}
+      {tint === 'danger' && <rect x={x * MT + 2} y={y * MT + 2} width={MT - 4} height={MT - 4} rx={3} fill="#e2483d" opacity={0.45} />}
+      {tint === 'side' && <rect x={x * MT + 2} y={y * MT + 2} width={MT - 4} height={MT - 4} rx={3} fill="#f2901f" opacity={0.45} />}
+      {tint === 'safe' && <rect x={x * MT + 2} y={y * MT + 2} width={MT - 4} height={MT - 4} rx={3} fill="#4ade80" opacity={0.45} />}
+    </g>
+  );
+};
+
+/** A reference-sheet penguin sprite standing on a mini tile. */
+const MiniPenguin: React.FC<{ x: number; y: number; sprite: 'front' | 'back' | 'left' | 'right' }> = ({ x, y, sprite }) => (
+  <image
+    href={`/sprites/${sprite}.png`}
+    x={x * MT + 4}
+    y={y * MT - 12}
+    width={MT - 8}
+    height={MT + 6}
+    preserveAspectRatio="xMidYMax meet"
+    style={{ imageRendering: 'pixelated' } as React.CSSProperties}
+  />
+);
+
+interface TutorialSlide {
+  title: string;
+  caption: React.ReactNode;
+  diagram: React.ReactNode;
+}
+
+const TUTORIAL_SLIDES: TutorialSlide[] = [
+  {
+    title: 'TAP TO DROP',
+    caption: <>Tap a penguin to open its trapdoor and clear a spot. <strong className="text-[#e2483d]">If the floor fills up completely - game over!</strong></>,
+    diagram: (
+      <svg viewBox={`-6 -18 ${MT * 4 + 12} ${MT * 2 + 26}`} className="w-full h-full">
+        {[0, 1, 2, 3].map(x => <MiniTile key={x} x={x} y={0} hole={x === 2} />)}
+        {[0, 1, 2, 3].map(x => <MiniTile key={x} x={x} y={1} />)}
+        <MiniPenguin x={0} y={0} sprite="front" />
+        <MiniPenguin x={1} y={1} sprite="right" />
+        <text x={2 * MT + MT / 2} y={-6} textAnchor="middle" fontSize="13" fill="#fbbf3c" fontWeight="bold">+5</text>
+        <text x={2 * MT + MT / 2} y={MT * 2 + 4} textAnchor="middle" fontSize="15">👆</text>
+      </svg>
+    ),
+  },
+  {
+    title: 'PENGUIN VISION',
+    caption: <>A penguin sees <strong className="text-[#e2483d]">3 tiles ahead & diagonally forward</strong>, <strong className="text-[#f2901f]">2 to each side</strong> - and <strong className="text-[#4ade80]">nothing behind</strong>. Drop from behind!</>,
+    diagram: (
+      <svg viewBox={`-6 -18 ${MT * 5 + 12} ${MT * 5 + 24}`} className="w-full h-full">
+        {Array.from({ length: 5 }).map((_, y) => Array.from({ length: 5 }).map((_, x) => {
+          let tint: 'danger' | 'side' | 'safe' | undefined;
+          if (x === 2 && y > 1) tint = 'danger';                    // 3 straight ahead (facing down)
+          else if (y - 1 === Math.abs(x - 2) && y > 1) tint = 'danger'; // forward diagonals
+          else if (y === 1 && x !== 2) tint = 'side';               // 2 each side
+          else if (y === 0) tint = 'safe';                          // behind + back diagonals: blind
+          return <MiniTile key={`${x}-${y}`} x={x} y={y} tint={tint} />;
+        }))}
+        <MiniPenguin x={2} y={1} sprite="front" />
+        {[1, 2, 3].map(x => (
+          <text key={x} x={x * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#166534">✓</text>
+        ))}
+      </svg>
+    ),
+  },
+  {
+    title: 'FRIENDS BLOCK THE VIEW',
+    caption: <>Vision stops at the first penguin in the way. <strong className="text-[#4ade80]">Hide behind a bystander</strong> and drop safely - even right in front of a watcher!</>,
+    diagram: (
+      <svg viewBox={`-6 -18 ${MT * 3 + 12} ${MT * 4 + 24}`} className="w-full h-full">
+        {Array.from({ length: 4 }).map((_, y) => Array.from({ length: 3 }).map((_, x) => {
+          let tint: 'danger' | 'safe' | undefined;
+          if (x === 1 && y === 1) tint = 'danger'; // watcher sees only up to the blocker
+          else if (x === 1 && (y === 2 || y === 3)) tint = 'safe'; // hidden behind the blocker
+          return <MiniTile key={`${x}-${y}`} x={x} y={y} tint={tint} />;
+        }))}
+        <MiniPenguin x={1} y={0} sprite="front" />
+        <MiniPenguin x={1} y={1} sprite="back" />
+        <MiniPenguin x={1} y={2} sprite="front" />
+        <text x={1 * MT + MT / 2} y={2 * MT - 14} textAnchor="middle" fontSize="12" fontWeight="bold" fill="#166534">✓ HIDDEN</text>
+      </svg>
+    ),
+  },
+  {
+    title: 'FISH = DISTRACTION',
+    caption: <>Earn a <strong className="text-[#f2901f]">FISH every 10 floors</strong>. Tap an empty tile to place it - every penguin turns to stare at the snack, leaving their backs wide open!</>,
+    diagram: (
+      <svg viewBox={`-6 -18 ${MT * 4 + 12} ${MT * 2 + 26}`} className="w-full h-full">
+        {[0, 1].map(y => [0, 1, 2, 3].map(x => <MiniTile key={`${x}-${y}`} x={x} y={y} tint={x === 3 && y === 0 ? undefined : undefined} />))}
+        <MiniPenguin x={0} y={0} sprite="right" />
+        <MiniPenguin x={1} y={1} sprite="right" />
+        {/* the fish everyone stares at */}
+        <g transform={`translate(${3 * MT + 6}, ${0 * MT + 10})`}>
+          <rect x={4} y={6} width={20} height={8} rx={2} fill="#38bdf8" />
+          <rect x={0} y={4} width={6} height={12} rx={1} fill="#f59e0b" />
+          <circle cx={19} cy={9} r={1.6} fill="#0f172a" />
+        </g>
+        <text x={2 * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="12" fill="#f2901f">👀 →</text>
+      </svg>
+    ),
+  },
+];
+
+export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isMuted: boolean; onToggleMute: () => void }> = ({ onStart, highScore, isMuted, onToggleMute }) => {
+  const [slide, setSlide] = React.useState(0);
+
+  // Rotating slideshow - advances on its own; tapping a dot jumps to a slide
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setSlide(prev => (prev + 1) % TUTORIAL_SLIDES.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const current = TUTORIAL_SLIDES[slide];
+
+  return (
+  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4 select-none overflow-y-auto">
     <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
     <motion.div
        initial={{ y: 20, opacity: 0 }}
        animate={{ y: 0, opacity: 1 }}
        className="text-center max-w-md w-full"
     >
-      <div className="flex justify-center mb-3">
+      <div className="flex justify-center mb-2">
         <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}>
-          <PenguinIcon size={96} />
+          <PenguinIcon size={72} />
         </motion.div>
       </div>
       <h1 className="text-2xl font-pixel font-bold text-[#efece2] mb-1 tracking-tight leading-normal">
-        PENGUIN<br/>
-        <span className="text-[#f2901f]">ELEVATOR</span>
+        PENGUIN <span className="text-[#f2901f]">ELEVATOR</span>
       </h1>
-      <div className="text-[#6b7aa0] font-pixel text-[9px] mb-5 tracking-widest uppercase">
+      <div className="text-[#6b7aa0] font-pixel text-[9px] mb-4 tracking-widest uppercase">
         {APP_VERSION}
       </div>
 
-      <div className="bg-[#1d3358] p-5 rounded-2xl border-b-[6px] border-[#12213c] mb-5 text-left">
-        <h3 className="text-[#fbbf3c] font-pixel text-[10px] mb-3 uppercase border-b-2 border-[#2d4d80] pb-2">HOW TO PLAY</h3>
-        <ul className="text-[#d8dce8] text-[10px] font-pixel space-y-3 leading-relaxed">
-          <li>Drop penguins through trapdoors to clear space.</li>
-          <li><strong className="text-[#e2483d]">RULE:</strong> A penguin sees <strong>3 tiles ahead</strong>, <strong>2 to each side</strong>, and <strong>nothing behind</strong> - drop only where none can see!</li>
-          <li>Earn a <strong className="text-[#f2901f]">FISH</strong> every 10 floors - place it on an empty tile to grab every penguin's attention.</li>
-          <li><strong className="text-[#e2483d]">FULL FLOOR = GAME OVER.</strong> Keep making room!</li>
-        </ul>
+      {/* ROTATING ILLUSTRATED HOW-TO-PLAY */}
+      <div className="bg-[#1d3358] p-4 rounded-2xl border-b-[6px] border-[#12213c] mb-4 text-left">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={slide}
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.25 }}
+          >
+            <h3 className="text-[#fbbf3c] font-pixel text-[11px] mb-2 uppercase text-center tracking-wider">{current.title}</h3>
+            <div className="h-40 flex items-center justify-center mb-2 bg-[#16294a] rounded-xl p-2">
+              {current.diagram}
+            </div>
+            <p className="text-[#d8dce8] text-[10px] font-pixel leading-relaxed text-center min-h-[3.5rem]">
+              {current.caption}
+            </p>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* SLIDE DOTS */}
+        <div className="flex justify-center gap-2 mt-1">
+          {TUTORIAL_SLIDES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setSlide(i)}
+              className={`w-2.5 h-2.5 rounded-full transition-all ${i === slide ? 'bg-[#f2901f] scale-125' : 'bg-[#2d4d80] hover:bg-[#3d5a8c]'}`}
+              aria-label={`Slide ${i + 1}`}
+            />
+          ))}
+        </div>
       </div>
 
       {highScore > 0 && (
-         <div className="mb-5 inline-block px-4 py-2 bg-[#1d3358] rounded-xl border-b-4 border-[#12213c] text-[#fbbf3c] font-pixel font-bold text-xs shadow-md">
+         <div className="mb-4 inline-block px-4 py-2 bg-[#1d3358] rounded-xl border-b-4 border-[#12213c] text-[#fbbf3c] font-pixel font-bold text-xs shadow-md">
             BEST SCORE: {highScore}
          </div>
       )}
 
+      {/* PLAY IS ALWAYS AVAILABLE - the show keeps rotating behind it */}
       <button
         onClick={onStart}
         className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] text-base active:translate-y-1 active:border-b-2 uppercase tracking-widest transition-all shadow-xl"
       >
-        START GAME
+        ▶ PLAY
       </button>
 
-      <div className="mt-4 text-[#8fa2c0] font-pixel text-[9px] tracking-wider uppercase opacity-90">
+      <div className="mt-3 text-[#8fa2c0] font-pixel text-[9px] tracking-wider uppercase opacity-90">
         {STUDIO_NAME} • {AUTHOR_NAME}
       </div>
     </motion.div>
   </div>
-);
+  );
+};
 
 /**
  * Mobile Simulator Frame Wrapper for PC Testing

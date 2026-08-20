@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { GameState, Penguin, FloatingScore } from './types';
 import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR } from './constants';
-import { getRandomDirection, checkDropSafety, rotatePenguin, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime } from './utils/gameLogic';
+import { getRandomDirection, checkDropSafety, rotateAllPenguins, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime, getSpawnDirection, getWallFacingDirection, shouldBoardThisFloor } from './utils/gameLogic';
 import { audioManager } from './utils/audio'; 
 import { Grid } from './components/Grid';
 import { ElevatorShaft } from './components/ElevatorShaft';
@@ -78,24 +78,25 @@ function App() {
   const startGame = () => {
     audioManager.unlock();
     const newPenguins: Penguin[] = [];
-    const usedPositions = new Set<string>();
     const initialCount = INITIAL_PENGUINS_MIN + Math.floor(Math.random() * 2); // 3 or 4
 
-    while (newPenguins.length < initialCount) {
-      const x = Math.floor(Math.random() * GRID_SIZE);
-      const y = Math.floor(Math.random() * GRID_SIZE);
-      const key = `${x},${y}`;
-      if (!usedPositions.has(key)) {
-        usedPositions.add(key);
-        newPenguins.push({
-          id: uuidv4(),
-          x,
-          y,
-          direction: getRandomDirection(),
-          type: getRandomPenguinType(),
-          appearanceVariant: Math.floor(Math.random() * 4)
-        });
-      }
+    // Easy, readable opening: penguins start in the corners, each staring at
+    // the nearest wall so their backs are exposed to the open floor.
+    const corners = [
+      { x: 0, y: 0 }, { x: GRID_SIZE - 1, y: 0 },
+      { x: 0, y: GRID_SIZE - 1 }, { x: GRID_SIZE - 1, y: GRID_SIZE - 1 },
+    ].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < initialCount; i++) {
+      const pos = corners[i];
+      newPenguins.push({
+        id: uuidv4(),
+        x: pos.x,
+        y: pos.y,
+        direction: getWallFacingDirection(pos),
+        type: getRandomPenguinType(),
+        appearanceVariant: Math.floor(Math.random() * 4)
+      });
     }
 
     setGameState(prev => ({
@@ -146,7 +147,10 @@ function App() {
          };
       }
 
-      const numToAdd = prev.penguins.length === 0 ? 3 : 1;
+      // Early floors get "rest stops" where nobody boards - a gentle ramp-up
+      const numToAdd = prev.penguins.length === 0
+        ? 3
+        : shouldBoardThisFloor(prev.floor, prev.penguins.length) ? 1 : 0;
       let nextPenguins: Penguin[] = prev.penguins.map(p => ({ ...p, isEntering: false, isPushed: false }));
       let added = false;
       const pushedIds = new Set<string>();
@@ -168,7 +172,7 @@ function App() {
                 id: uuidv4(),
                 x: emptyPos.x,
                 y: emptyPos.y,
-                direction: getRandomDirection(),
+                direction: getSpawnDirection(emptyPos, prev.floor),
                 type: getRandomPenguinType(),
                 isEntering: true,
                 appearanceVariant: Math.floor(Math.random() * 4)
@@ -217,12 +221,10 @@ function App() {
     setTimeout(() => {
       setGameState(prev => {
         if (prev.phase !== 'PLAYING') return prev;
+        // Every level the flock shuffles - at least one penguin always turns
         return {
           ...prev,
-          penguins: prev.penguins.map(p => ({
-            ...p,
-            direction: rotatePenguin(p.direction, p.type, prev.floor)
-          }))
+          penguins: rotateAllPenguins(prev.penguins, prev.floor)
         };
       });
     }, rotationEventTime);
