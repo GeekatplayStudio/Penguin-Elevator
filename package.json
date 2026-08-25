@@ -1,7 +1,7 @@
 {
   "name": "penguin-elevator",
   "private": true,
-  "version": "3.0.0",
+  "version": "2.0.0",
   "description": "Penguin Elevator - 3D Voxel Arcade Puzzle Game by Geekatplay Studio",
   "author": "Geekatplay Studio",
   "repository": {

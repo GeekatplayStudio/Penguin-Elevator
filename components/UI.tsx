@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye } from './Icons';
 import { APP_VERSION, STUDIO_NAME, AUTHOR_NAME, COPYRIGHT_NOTICE } from '../constants';
 import { PenguinIcon } from './Penguin';
+import { PileReveal } from './Cinematics';
+import { getBoardingTime, getMoveTime, getDifficultyLevel } from '../utils/gameLogic';
+import { audioManager } from '../utils/audio';
 
 /** Small floating mute toggle reused on the Start and Game Over screens */
 const MuteButton: React.FC<{ isMuted: boolean; onToggleMute: () => void }> = ({ isMuted, onToggleMute }) => (
@@ -72,6 +75,19 @@ export const Header: React.FC<HeaderProps> = ({
           </motion.div>
         </div>
 
+        {/* DIFFICULTY LEVEL - steps up every 10 floors, matching the pacing tiers */}
+        <div className="border-l-2 border-[#2d4d80] pl-3">
+          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider">Difficulty</div>
+          <motion.div
+            key={getDifficultyLevel(floor)}
+            initial={{ scale: 1.4 }}
+            animate={{ scale: 1 }}
+            className="text-lg font-pixel font-bold text-[#f2901f] leading-none"
+          >
+            LV {getDifficultyLevel(floor)}
+          </motion.div>
+        </div>
+
         {combo > 1 && (
           <motion.div
             initial={{ scale: 0.5, rotate: -10 }}
@@ -129,6 +145,41 @@ export const Header: React.FC<HeaderProps> = ({
     </div>
   </div>
 );
+
+/**
+ * Countdown bar for the elevator's rhythm: while the doors are open it drains
+ * (time left to act before they close), while the elevator climbs it fills
+ * (time until the next floor arrives). Both durations come from the same
+ * difficulty functions the game engine uses, so the bar automatically gets
+ * quicker as the elevator rises.
+ */
+export const FloorTimer: React.FC<{ elevatorState: string; floor: number }> = ({ elevatorState, floor }) => {
+  const isBoarding = elevatorState === 'BOARDING';
+  const isMoving = elevatorState === 'MOVING';
+  if (!isBoarding && !isMoving) return null;
+
+  const duration = (isBoarding ? getBoardingTime(floor) : getMoveTime(floor)) / 1000;
+
+  return (
+    <div className="absolute top-[7.5rem] left-1/2 -translate-x-1/2 z-30 w-48 pointer-events-none">
+      <div className="flex justify-between items-baseline mb-1 px-0.5">
+        <span className="font-pixel text-[8px] uppercase tracking-wider text-[#8fa2c0]">
+          {isBoarding ? 'Doors close in' : 'Next floor in'}
+        </span>
+        <span className="font-pixel text-[8px] text-[#fbbf3c]">{duration.toFixed(1)}s</span>
+      </div>
+      <div className="h-2.5 bg-[#12213c] rounded-md border border-[#2d4d80] overflow-hidden">
+        <motion.div
+          key={`${elevatorState}-${floor}`}
+          className={`h-full rounded-sm ${isBoarding ? 'bg-[#e2483d]' : 'bg-[#38bdf8]'}`}
+          initial={{ width: isBoarding ? '100%' : '0%' }}
+          animate={{ width: isBoarding ? '0%' : '100%' }}
+          transition={{ duration, ease: 'linear' }}
+        />
+      </div>
+    </div>
+  );
+};
 
 interface MobileControlsProps {
   fishCount: number;
@@ -205,61 +256,125 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 interface GameOverScreenProps {
   score: number;
   floor: number;
+  highScore: number;
+  bestFloor: number;
   onRestart: () => void;
   reason?: 'CAUGHT' | 'BANKRUPT';
   isMuted: boolean;
   onToggleMute: () => void;
 }
 
-export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, onRestart, reason, isMuted, onToggleMute }) => {
+export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, highScore, bestFloor, onRestart, reason, isMuted, onToggleMute }) => {
+  // Stage 1: the shaft streaks past and the pile of grumpy dropped penguins
+  // rises into view (with the sad trombone). Stage 2: the score card.
+  const [stage, setStage] = React.useState<'REVEAL' | 'CARD'>('REVEAL');
+
+  React.useEffect(() => {
+    audioManager.playSadTrombone();
+    const t = setTimeout(() => setStage('CARD'), 3600);
+    return () => clearTimeout(t);
+  }, []);
+
+  const isNewHighScore = score >= highScore && score > 0;
+  const isNewBestFloor = floor >= bestFloor && floor > 1;
+  const floorsShort = bestFloor - floor;
+
   return (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 select-none">
-    <motion.div
-      initial={{ scale: 0.85, opacity: 0, y: 20 }}
-      animate={{ scale: 1, opacity: 1, y: 0 }}
-      className="relative bg-[#1d3358] p-8 border-b-[6px] border-[#12213c] shadow-2xl max-w-sm w-full text-center rounded-3xl"
-    >
-      <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
-      <motion.div
-        className="inline-flex items-center justify-center mb-2"
-        animate={{ rotate: [-4, 4, -4], y: [0, -3, 0] }}
-        transition={{ repeat: Infinity, duration: 0.5 }}
-      >
-        <PenguinIcon size={88} isPanic type="STANDARD" />
-      </motion.div>
+  <div
+    className="fixed inset-0 z-50 bg-slate-950 select-none overflow-hidden"
+    onClick={() => stage === 'REVEAL' && setStage('CARD')}
+  >
+    <PileReveal />
 
-      <h2 className="text-xl font-pixel font-bold text-white mb-2 tracking-tight">
-         {reason === 'BANKRUPT' ? 'ELEVATOR FULL!' : 'BUSTED!'}
-      </h2>
-      <p className="text-slate-400 mb-5 text-xs font-pixel leading-relaxed">
-        {reason === 'BANKRUPT' ? 'No room left - the floor filled up completely!' : 'A penguin caught you dropping a passenger!'}
-      </p>
-      
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-[#16294a] p-3 rounded-xl border-b-4 border-[#0f1d36]">
-          <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">HIGH FLOOR</div>
-          <div className="text-xl font-pixel font-bold text-[#efece2]">{floor}</div>
-        </div>
-        <div className="bg-[#16294a] p-3 rounded-xl border-b-4 border-[#0f1d36]">
-          <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">SCORE</div>
-          <div className="text-xl font-pixel font-bold text-[#fbbf3c]">{score}</div>
-        </div>
+    <AnimatePresence>
+      {stage === 'REVEAL' && (
+        <motion.div
+          key="reveal-label"
+          exit={{ opacity: 0 }}
+          className="absolute top-16 inset-x-0 text-center pointer-events-none"
+        >
+          <motion.h2
+            initial={{ scale: 0, rotate: -6 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 1.2, type: 'spring', stiffness: 200 }}
+            className="font-pixel font-bold text-3xl text-[#e2483d] drop-shadow-[0_4px_0_#12213c] uppercase tracking-tight"
+          >
+            {reason === 'BANKRUPT' ? 'Elevator Full!' : 'Busted!'}
+          </motion.h2>
+          <div className="mt-3 font-pixel text-[9px] text-white/40 uppercase tracking-widest">Tap to continue</div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {stage === 'CARD' && (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <motion.div
+          initial={{ scale: 0.85, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          className="relative bg-[#1d3358] p-7 border-b-[6px] border-[#12213c] shadow-2xl max-w-sm w-full text-center rounded-3xl"
+        >
+          <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
+          <motion.div
+            className="inline-flex items-center justify-center mb-2"
+            animate={{ rotate: [-4, 4, -4], y: [0, -3, 0] }}
+            transition={{ repeat: Infinity, duration: 0.5 }}
+          >
+            <PenguinIcon size={80} isPanic type="STANDARD" />
+          </motion.div>
+
+          <h2 className="text-xl font-pixel font-bold text-white mb-2 tracking-tight">
+             {reason === 'BANKRUPT' ? 'ELEVATOR FULL!' : 'BUSTED!'}
+          </h2>
+          <p className="text-slate-400 mb-4 text-xs font-pixel leading-relaxed">
+            {reason === 'BANKRUPT' ? 'No room left - the floor filled up completely!' : 'A penguin caught you dropping a passenger!'}
+          </p>
+
+          {/* NEW RECORD banner, or how close this run came to the record */}
+          {(isNewHighScore || isNewBestFloor) ? (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ repeat: Infinity, duration: 0.8 }}
+              className="mb-4 py-2 px-3 bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold text-xs rounded-xl border-b-4 border-[#d97b12] uppercase tracking-wider"
+            >
+              ★ NEW {isNewBestFloor && !isNewHighScore ? 'BEST FLOOR' : 'RECORD'}! ★
+            </motion.div>
+          ) : floorsShort > 0 && floorsShort <= 15 ? (
+            <div className="mb-4 py-2 px-3 bg-[#16294a] text-[#38bdf8] font-pixel text-[10px] rounded-xl border border-[#2d4d80] leading-relaxed">
+              Only <strong className="text-[#fbbf3c]">{floorsShort} floor{floorsShort === 1 ? '' : 's'}</strong> short of your record!
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2.5 mb-5">
+            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">FLOOR REACHED</div>
+              <div className="text-xl font-pixel font-bold text-[#efece2]">{floor}</div>
+            </div>
+            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">SCORE</div>
+              <div className="text-xl font-pixel font-bold text-[#fbbf3c]">{score}</div>
+            </div>
+            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">BEST FLOOR</div>
+              <div className={`text-xl font-pixel font-bold ${isNewBestFloor ? 'text-[#fbbf3c]' : 'text-[#8fa2c0]'}`}>{Math.max(bestFloor, floor)}</div>
+            </div>
+            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">BEST SCORE</div>
+              <div className={`text-xl font-pixel font-bold ${isNewHighScore ? 'text-[#fbbf3c]' : 'text-[#8fa2c0]'}`}>{Math.max(highScore, score)}</div>
+            </div>
+          </div>
+
+          <button
+            onClick={onRestart}
+            className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
+          >
+            TRY AGAIN
+          </button>
+          <div className="mt-3 text-[#6b7aa0] text-[9px] font-pixel">PRESS <kbd className="bg-[#24406b] text-[#efece2] px-1.5 py-0.5 rounded">SPACE</kbd> TO RESTART</div>
+          <div className="mt-3 text-[#6b7aa0] text-[8px] font-pixel uppercase tracking-wider">{COPYRIGHT_NOTICE}</div>
+        </motion.div>
       </div>
-
-      {/* RUN DATE - shown on the splash, never sent anywhere */}
-      <div className="mb-4 text-[9px] font-pixel text-[#8fa2c0]">
-        {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-      </div>
-
-      <button
-        onClick={onRestart}
-        className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
-      >
-        TRY AGAIN
-      </button>
-      <div className="mt-3 text-[#6b7aa0] text-[9px] font-pixel">PRESS <kbd className="bg-[#24406b] text-[#efece2] px-1.5 py-0.5 rounded">SPACE</kbd> TO RESTART</div>
-      <div className="mt-3 text-[#6b7aa0] text-[8px] font-pixel uppercase tracking-wider">{COPYRIGHT_NOTICE}</div>
-    </motion.div>
+    )}
   </div>
   );
 };
@@ -377,7 +492,7 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
   },
 ];
 
-export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isMuted: boolean; onToggleMute: () => void }> = ({ onStart, highScore, isMuted, onToggleMute }) => {
+export const StartScreen: React.FC<{ onStart: () => void; highScore: number; bestFloor: number; isMuted: boolean; onToggleMute: () => void }> = ({ onStart, highScore, bestFloor, isMuted, onToggleMute }) => {
   const [slide, setSlide] = React.useState(0);
 
   // Rotating slideshow - advances on its own; tapping a dot jumps to a slide
@@ -444,8 +559,15 @@ export const StartScreen: React.FC<{ onStart: () => void; highScore: number; isM
       </div>
 
       {highScore > 0 && (
-         <div className="mb-4 inline-block px-4 py-2 bg-[#1d3358] rounded-xl border-b-4 border-[#12213c] text-[#fbbf3c] font-pixel font-bold text-xs shadow-md">
-            BEST SCORE: {highScore}
+         <div className="mb-4 flex justify-center gap-2">
+           <div className="px-4 py-2 bg-[#1d3358] rounded-xl border-b-4 border-[#12213c] text-[#fbbf3c] font-pixel font-bold text-xs shadow-md">
+              BEST SCORE: {highScore}
+           </div>
+           {bestFloor > 1 && (
+             <div className="px-4 py-2 bg-[#1d3358] rounded-xl border-b-4 border-[#12213c] text-[#38bdf8] font-pixel font-bold text-xs shadow-md">
+                BEST FLOOR: {bestFloor}
+             </div>
+           )}
          </div>
       )}
 

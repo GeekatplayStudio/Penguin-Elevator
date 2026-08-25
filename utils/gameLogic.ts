@@ -200,11 +200,21 @@ export const getFloorTier = (floor: number): number => {
   return Math.floor(Math.max(0, floor - 1) / 10);
 };
 
+/**
+ * Player-facing difficulty level, shown in the HUD. Level 1 covers floors
+ * 1-10, level 2 covers 11-20, and so on - the same tiers every pacing knob
+ * below keys off, so what the badge says always matches how the game feels.
+ */
+export const getDifficultyLevel = (floor: number): number => {
+  return getFloorTier(floor) + 1;
+};
+
 export const getRotationChance = (floor: number, pType: PenguinTypeVariant): number => {
   const tier = getFloorTier(floor);
-  // Calm start: light rotation on floors 1-10, then increasingly restless
-  let baseChance = 0.18 + (tier * 0.08);
-  baseChance = Math.min(0.65, baseChance);
+  // Calm start, slow burn: floors 1-50 climb from 15% to ~37%, and the
+  // ceiling only arrives deep in the run
+  let baseChance = 0.15 + (tier * 0.055);
+  baseChance = Math.min(0.60, baseChance);
 
   if (pType === 'SLEEPY') return baseChance * 0.25;
   if (pType === 'JITTERY') return Math.min(0.80, baseChance * 1.5);
@@ -215,25 +225,25 @@ export const getRotationChance = (floor: number, pType: PenguinTypeVariant): num
 export const getMoveTime = (floor: number): number => {
   const tier = getFloorTier(floor);
   const baseTime = 6500; // Very relaxed ride between floors 1-10
-  const reduced = baseTime - (tier * 350);
-  return Math.max(3200, reduced); // Never faster than 3.2s - quick but playable
+  const reduced = baseTime - (tier * 250); // gentle 0.25s per 10 floors
+  return Math.max(3500, reduced); // Never faster than 3.5s - quick but playable
 };
 
 export const getBoardingTime = (floor: number): number => {
   const tier = getFloorTier(floor);
   const baseTime = 6000; // Long open-door pause on floors 1-10 to plan & tap
-  const reduced = baseTime - (tier * 350);
-  return Math.max(2800, reduced); // Never faster than 2.8s
+  const reduced = baseTime - (tier * 250);
+  return Math.max(3000, reduced); // Never faster than 3.0s
 };
 
 /**
  * On early floors the elevator takes on passengers only every OTHER floor,
- * giving new players breathing room. From floor 9 up, someone boards on every
- * floor.
+ * giving new players breathing room. From floor 13 up, someone boards on
+ * every floor.
  */
 export const shouldBoardThisFloor = (floor: number, penguinCount: number): boolean => {
   if (penguinCount === 0) return true;        // never leave the floor empty
-  if (floor <= 8 && floor % 2 === 0) return false;
+  if (floor <= 12 && floor % 2 === 0) return false;
   return true;
 };
 
@@ -260,7 +270,7 @@ export const getWallFacingDirection = (pos: GridPos): Direction => {
  */
 export const getSpawnDirection = (pos: GridPos, floor: number): Direction => {
   const tier = getFloorTier(floor);
-  const wallChance = Math.max(0, 0.85 - tier * 0.25); // 85% -> 60% -> 35% -> 10% -> 0%
+  const wallChance = Math.max(0, 0.85 - tier * 0.18); // 85% -> 67% -> 49% -> ... -> 0% by floor ~50
   if (Math.random() < wallChance) {
     return getWallFacingDirection(pos);
   }

@@ -1,4 +1,4 @@
-export const APP_VERSION = "v3.0.0-mobile";
+export const APP_VERSION = "v2.0";
 export const STUDIO_NAME = "Geekatplay Studio";
 export const AUTHOR_NAME = "Vladimir Chopine";
 export const COPYRIGHT_NOTICE = "© Geekatplay Studio by Vladimir Chopine";

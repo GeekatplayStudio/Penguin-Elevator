@@ -329,6 +329,64 @@ class AudioController {
     osc.stop(this.ctx.currentTime + 0.1);
   }
 
+  // Classic "wah wah wah waaaah" sad trombone for the game-over pile reveal.
+  // Four descending brass-ish notes, each bending downward, the last one long
+  // with a mournful vibrato wobble.
+  public playSadTrombone() {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.muted) return;
+
+    const t = this.ctx.currentTime;
+    // Bb3 -> A3 -> Ab3 -> G3, the canonical loser cadence
+    const notes = [
+      { freq: 233.08, start: 0.0, dur: 0.38 },
+      { freq: 220.0, start: 0.45, dur: 0.38 },
+      { freq: 207.65, start: 0.9, dur: 0.38 },
+      { freq: 196.0, start: 1.35, dur: 1.1 },
+    ];
+
+    notes.forEach(({ freq, start, dur }, idx) => {
+      const isLast = idx === notes.length - 1;
+      const osc = this.ctx!.createOscillator();
+      const filter = this.ctx!.createBiquadFilter();
+      const gain = this.ctx!.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, t + start);
+      // each note droops downward like a deflating balloon
+      osc.frequency.exponentialRampToValueAtTime(freq * (isLast ? 0.82 : 0.94), t + start + dur);
+
+      // lowpass takes the sawtooth buzz down to a muted-brass hum
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(900, t + start);
+      filter.frequency.exponentialRampToValueAtTime(500, t + start + dur);
+      filter.Q.value = 2;
+
+      gain.gain.setValueAtTime(0.0001, t + start);
+      gain.gain.exponentialRampToValueAtTime(0.3, t + start + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + start + dur);
+
+      if (isLast) {
+        // mournful wobble on the final long note
+        const vibrato = this.ctx!.createOscillator();
+        const vibratoGain = this.ctx!.createGain();
+        vibrato.type = 'sine';
+        vibrato.frequency.value = 6;
+        vibratoGain.gain.value = 7;
+        vibrato.connect(vibratoGain);
+        vibratoGain.connect(osc.frequency);
+        vibrato.start(t + start + 0.3);
+        vibrato.stop(t + start + dur);
+      }
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t + start);
+      osc.stop(t + start + dur);
+    });
+  }
+
   // 16-Bit Combo Fanfare
   public playCombo() {
     this.init();

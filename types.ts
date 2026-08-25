@@ -19,7 +19,7 @@ export interface Penguin {
   appearanceVariant: number; // Visual accessory or color
 }
 
-export type GamePhase = 'START_MENU' | 'PLAYING' | 'GAME_OVER';
+export type GamePhase = 'START_MENU' | 'INTRO' | 'PLAYING' | 'GAME_OVER';
 
 export type ElevatorState = 
   | 'STOPPED'      // At a floor, door closed, waiting to open
@@ -46,6 +46,7 @@ export interface GameState {
   floor: number;
   score: number;
   highScore: number;
+  bestFloor: number; // Highest floor ever reached, persisted across sessions
   elevatorState: ElevatorState;
   penguins: Penguin[];
   lastDroppedId: string | null;

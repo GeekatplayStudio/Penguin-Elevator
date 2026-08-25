@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Penguin as PenguinType, Direction } from '../types';
 import { AlertTriangle } from './Icons';
+import { ClosedEyesOverlay, ExclamationMarks } from './Cinematics';
 import clsx from 'clsx';
 
 interface PenguinProps {
@@ -136,10 +137,12 @@ export const Penguin: React.FC<PenguinProps> = ({
             key="penguin-pixel-body"
             initial={penguin.isEntering ? { opacity: 0, scale: 0.3, y: -60, rotate: -20 } : { opacity: 0, scale: 0 }}
             animate={penguin.isPanic ? {
-               y: [0, -36, 0, -26, 0],
-               scale: [1, 1.28, 0.95, 1.2, 1],
-               rotate: [0, -14, 14, -8, 8, 0],
-               transition: { repeat: Infinity, duration: 0.38, ease: "easeInOut" }
+               // Exactly 6 alarm jumps (1 cycle + 5 repeats), then it settles -
+               // long enough to point at the witness, short enough to read as a yelp
+               y: [0, -34, 0],
+               scale: [1, 1.22, 1],
+               rotate: [0, -10, 10, 0],
+               transition: { repeat: 5, duration: 0.38, ease: "easeInOut" }
             } : penguin.isDizzy ? {
                // Funny dizzy wobble right before the trapdoor opens
                opacity: 1,
@@ -230,17 +233,20 @@ export const Penguin: React.FC<PenguinProps> = ({
                 isHovered={isHovered}
                 appearanceVariant={penguin.appearanceVariant}
               />
+              {/* Sleeping penguins get proper closed eyelids over the render */}
+              {penguin.type === 'SLEEPY' && !penguin.isPanic && (
+                <ClosedEyesOverlay facing={facingDir} />
+              )}
             </div>
 
-            {/* PANIC JUMP & SCREAM SPEECH BUBBLE */}
+            {/* PANIC ALARM - three bright red exclamation marks over the witness's head */}
             {penguin.isPanic && (
               <motion.div
                 initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: [1, 1.35, 1], y: [-15, -28, -15] }}
-                transition={{ repeat: Infinity, duration: 0.35 }}
-                className="absolute -top-12 px-2.5 py-1 bg-[#e2483d] text-white font-pixel font-bold text-[11px] rounded-xl border-2 border-white shadow-[0_0_18px_rgba(226,72,61,1)] flex items-center gap-1 z-40 uppercase tracking-wider whitespace-nowrap"
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute -top-10 z-40 drop-shadow-[0_0_10px_rgba(226,72,61,0.9)]"
               >
-                <span>HEY!! 🚨</span>
+                <ExclamationMarks />
               </motion.div>
             )}
 

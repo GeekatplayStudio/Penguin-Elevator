@@ -10,7 +10,8 @@ import { getRandomDirection, checkDropSafety, rotateAllPenguins, findEmptyCell, 
 import { audioManager } from './utils/audio'; 
 import { Grid } from './components/Grid';
 import { ElevatorShaft } from './components/ElevatorShaft';
-import { Header, GameOverScreen, StartScreen, MobileControls, MobileSimulatorFrame } from './components/UI';
+import { Header, GameOverScreen, StartScreen, MobileControls, MobileSimulatorFrame, FloorTimer } from './components/UI';
+import { IntroSequence } from './components/Cinematics';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const INITIAL_PENGUINS_MIN = 3; // Game starts with 3-4 penguins in their own sections
@@ -21,6 +22,7 @@ function App() {
     floor: 1,
     score: 0,
     highScore: 0,
+    bestFloor: 1,
     elevatorState: 'STOPPED',
     penguins: [],
     lastDroppedId: null,
@@ -40,7 +42,7 @@ function App() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load High Score (Preferences with localStorage fallback)
+  // Load High Score + Best Floor (Preferences with localStorage fallback)
   useEffect(() => {
     Preferences.get({ key: 'penguin-elevator-hs' }).then(({ value }) => {
       if (value) {
@@ -52,7 +54,24 @@ function App() {
         }
       }
     });
+    Preferences.get({ key: 'penguin-elevator-bf' }).then(({ value }) => {
+      const fallback = value ?? localStorage.getItem('penguin-elevator-bf');
+      if (fallback) {
+        setGameState(prev => ({ ...prev, bestFloor: parseInt(fallback, 10) }));
+      }
+    });
   }, []);
+
+  // Persists both records at the end of a run and returns the new values
+  const saveRecords = (score: number, floor: number, prevHigh: number, prevBestFloor: number) => {
+    const newHigh = Math.max(score, prevHigh);
+    const newBestFloor = Math.max(floor, prevBestFloor);
+    localStorage.setItem('penguin-elevator-hs', newHigh.toString());
+    localStorage.setItem('penguin-elevator-bf', newBestFloor.toString());
+    Preferences.set({ key: 'penguin-elevator-hs', value: newHigh.toString() }).catch(() => {});
+    Preferences.set({ key: 'penguin-elevator-bf', value: newBestFloor.toString() }).catch(() => {});
+    return { newHigh, newBestFloor };
+  };
 
   // Handle native app lifecycle background/foreground audio pause & resume
   useEffect(() => {
@@ -75,7 +94,7 @@ function App() {
     if (!Capacitor.isNativePlatform()) return;
     const sub = CapApp.addListener('backButton', () => {
       setGameState(prev => {
-        if (prev.phase === 'PLAYING' || prev.phase === 'GAME_OVER') {
+        if (prev.phase === 'PLAYING' || prev.phase === 'GAME_OVER' || prev.phase === 'INTRO') {
           return { ...prev, phase: 'START_MENU' };
         }
         CapApp.exitApp();
@@ -116,6 +135,13 @@ function App() {
     setTimeout(() => {
       setFloatingScores(prev => prev.filter(item => item.id !== id));
     }, 900);
+  };
+
+  // From the menu, a fresh game opens with the rooftop-party intro; the
+  // actual run begins when the intro finishes (or is tapped through).
+  const requestStart = () => {
+    audioManager.unlock();
+    setGameState(prev => ({ ...prev, phase: 'INTRO' }));
   };
 
   const startGame = () => {
@@ -178,15 +204,15 @@ function App() {
       if (prev.penguins.length >= MAX_CAPACITY) {
          // The floor is completely full - no room for anyone else. Instant game over.
          gameOver = true;
-         audioManager.playGameOverMusic();
+         audioManager.stopMusic();
          audioManager.playPanic();
-         const newHigh = Math.max(prev.score, prev.highScore);
-         localStorage.setItem('penguin-elevator-hs', newHigh.toString());
+         const { newHigh, newBestFloor } = saveRecords(prev.score, prev.floor, prev.highScore, prev.bestFloor);
          return {
              ...prev,
              phase: 'GAME_OVER',
              gameOverReason: 'BANKRUPT',
-             highScore: newHigh
+             highScore: newHigh,
+             bestFloor: newBestFloor
          };
       }
 
@@ -392,14 +418,13 @@ function App() {
       
       setTimeout(() => {
         setGameState(prev => {
-           const newHigh = Math.max(prev.score, prev.highScore);
-           localStorage.setItem('penguin-elevator-hs', newHigh.toString());
-           Preferences.set({ key: 'penguin-elevator-hs', value: newHigh.toString() }).catch(() => {});
+           const { newHigh, newBestFloor } = saveRecords(prev.score, prev.floor, prev.highScore, prev.bestFloor);
            return {
              ...prev,
              phase: 'GAME_OVER',
              gameOverReason: 'CAUGHT',
-             highScore: newHigh
+             highScore: newHigh,
+             bestFloor: newBestFloor
            };
         });
       }, TIMING.PANIC_DELAY);
@@ -410,8 +435,10 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
-        if (gameState.phase === 'START_MENU' || gameState.phase === 'GAME_OVER') {
-          startGame();
+        if (gameState.phase === 'START_MENU') {
+          requestStart(); // menu start runs the rooftop intro first
+        } else if (gameState.phase === 'GAME_OVER') {
+          startGame();    // quick restart skips straight into the run
         }
       }
       if (e.code === 'KeyF' && gameState.phase === 'PLAYING') {
@@ -442,11 +469,16 @@ function App() {
           {gameState.phase === 'START_MENU' && (
             <StartScreen
               key="start"
-              onStart={startGame}
+              onStart={requestStart}
               highScore={gameState.highScore}
+              bestFloor={gameState.bestFloor}
               isMuted={gameState.isMuted}
               onToggleMute={handleToggleMute}
             />
+          )}
+
+          {gameState.phase === 'INTRO' && (
+            <IntroSequence key="intro" onComplete={startGame} />
           )}
 
           {gameState.phase === 'PLAYING' && (
@@ -475,6 +507,8 @@ function App() {
                 }}
               />
 
+              <FloorTimer elevatorState={gameState.elevatorState} floor={gameState.floor} />
+
               <div className="flex-1 w-full flex items-center justify-center">
                  <Grid 
                     gameState={gameState} 
@@ -499,6 +533,8 @@ function App() {
                key="gameover"
                score={gameState.score}
                floor={gameState.floor}
+               highScore={gameState.highScore}
+               bestFloor={gameState.bestFloor}
                onRestart={startGame}
                reason={gameState.gameOverReason}
                isMuted={gameState.isMuted}
