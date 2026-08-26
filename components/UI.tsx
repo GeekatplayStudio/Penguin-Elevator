@@ -330,25 +330,27 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
     </AnimatePresence>
 
     {stage === 'CARD' && (
-      <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-b from-transparent via-black/45 to-black/85 p-4 pb-6">
+      // Anchored to the TOP: the trampoline and the bouncing penguins own the
+      // bottom of the frame, so keeping the card up here leaves the show visible
+      <div className="absolute inset-0 flex items-start justify-center bg-gradient-to-b from-black/85 via-black/40 to-transparent p-3 pt-4">
         <motion.div
           initial={{ scale: 0.85, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          className="relative bg-[#1d3358] p-7 border-b-[6px] border-[#12213c] shadow-2xl max-w-sm w-full text-center rounded-3xl"
+          className="relative bg-[#1d3358] px-5 py-4 border-b-[6px] border-[#12213c] shadow-2xl max-w-sm w-full text-center rounded-3xl"
         >
           <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
           <motion.div
-            className="inline-flex items-center justify-center mb-2"
+            className="inline-flex items-center justify-center mb-1"
             animate={{ rotate: [-4, 4, -4], y: [0, -3, 0] }}
             transition={{ repeat: Infinity, duration: 0.5 }}
           >
-            <PenguinIcon size={80} isPanic type="STANDARD" />
+            <PenguinIcon size={52} isPanic type="STANDARD" />
           </motion.div>
 
-          <h2 className="text-xl font-pixel font-bold text-white mb-2 tracking-tight">
+          <h2 className="text-lg font-pixel font-bold text-white mb-1.5 tracking-tight">
              {reason === 'BANKRUPT' ? 'ELEVATOR FULL!' : 'BUSTED!'}
           </h2>
-          <p className="text-slate-400 mb-4 text-xs font-pixel leading-relaxed">
+          <p className="text-slate-400 mb-3 text-[10px] font-pixel leading-relaxed">
             {reason === 'BANKRUPT' ? 'No room left - the floor filled up completely!' : 'A penguin caught you dropping a passenger!'}
           </p>
 
@@ -358,43 +360,42 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
               initial={{ scale: 0 }}
               animate={{ scale: [1, 1.06, 1] }}
               transition={{ repeat: Infinity, duration: 0.8 }}
-              className="mb-4 py-2 px-3 bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold text-xs rounded-xl border-b-4 border-[#d97b12] uppercase tracking-wider"
+              className="mb-3 py-1.5 px-3 bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold text-[11px] rounded-xl border-b-4 border-[#d97b12] uppercase tracking-wider"
             >
               &#9733; NEW {isNewBestFloor && !isNewHighScore ? 'BEST FLOOR' : 'RECORD'}! &#9733;
             </motion.div>
           ) : floorsShort > 0 && floorsShort <= 15 ? (
-            <div className="mb-4 py-2 px-3 bg-[#16294a] text-[#38bdf8] font-pixel text-[10px] rounded-xl border border-[#2d4d80] leading-relaxed">
+            <div className="mb-3 py-1.5 px-3 bg-[#16294a] text-[#38bdf8] font-pixel text-[10px] rounded-xl border border-[#2d4d80] leading-relaxed">
               Only <strong className="text-[#fbbf3c]">{floorsShort} floor{floorsShort === 1 ? '' : 's'}</strong> short of your record!
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-2.5 mb-5">
-            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
-              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">FLOOR REACHED</div>
+          <div className="grid grid-cols-2 gap-2 mb-3.5">
+            <div className="bg-[#16294a] px-2 py-1.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-0.5">FLOOR REACHED</div>
               <div className="text-xl font-pixel font-bold text-[#efece2]">{floor}</div>
             </div>
-            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
-              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">SCORE</div>
+            <div className="bg-[#16294a] px-2 py-1.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-0.5">SCORE</div>
               <div className="text-xl font-pixel font-bold text-[#fbbf3c]">{score}</div>
             </div>
-            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
-              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">BEST FLOOR</div>
+            <div className="bg-[#16294a] px-2 py-1.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-0.5">BEST FLOOR</div>
               <div className={`text-xl font-pixel font-bold ${isNewBestFloor ? 'text-[#fbbf3c]' : 'text-[#8fa2c0]'}`}>{Math.max(bestFloor, floor)}</div>
             </div>
-            <div className="bg-[#16294a] p-2.5 rounded-xl border-b-4 border-[#0f1d36]">
-              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-1">BEST SCORE</div>
+            <div className="bg-[#16294a] px-2 py-1.5 rounded-xl border-b-4 border-[#0f1d36]">
+              <div className="text-[8px] text-[#8fa2c0] uppercase font-pixel mb-0.5">BEST SCORE</div>
               <div className={`text-xl font-pixel font-bold ${isNewHighScore ? 'text-[#fbbf3c]' : 'text-[#8fa2c0]'}`}>{Math.max(highScore, score)}</div>
             </div>
           </div>
 
           <button
             onClick={onRestart}
-            className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
+            className="w-full py-3 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
           >
             TRY AGAIN
           </button>
-          <div className="mt-3 text-[#6b7aa0] text-[9px] font-pixel">PRESS <kbd className="bg-[#24406b] text-[#efece2] px-1.5 py-0.5 rounded">SPACE</kbd> TO RESTART</div>
-          <div className="mt-3 text-[#6b7aa0] text-[8px] font-pixel uppercase tracking-wider">{COPYRIGHT_NOTICE}</div>
+          <div className="mt-2 text-[#6b7aa0] text-[8px] font-pixel uppercase tracking-wider">{COPYRIGHT_NOTICE}</div>
         </motion.div>
       </div>
     )}
