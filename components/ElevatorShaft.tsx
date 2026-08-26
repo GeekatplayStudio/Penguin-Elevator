@@ -11,8 +11,11 @@ export const ElevatorShaft: React.FC<ElevatorShaftProps> = ({ elevatorState, flo
   const isMoving = elevatorState === 'MOVING';
   const isDoorOpen = elevatorState === 'BOARDING';
 
+  // `absolute`, not `fixed`: fixed escapes the phone-simulator frame and
+  // renders the shaft across the whole browser window, throwing every wall,
+  // door and background number out of alignment with the play area.
   return (
-    <div className="fixed inset-0 pointer-events-none -z-20 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col justify-between" style={{ perspective: '1200px' }}>
+    <div className="absolute inset-0 pointer-events-none -z-20 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col justify-between" style={{ perspective: '1200px' }}>
       {/* ISOMETRIC 3D ELEVATOR SHAFT BACKGROUND */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 via-70% to-slate-950 opacity-90" style={{ transform: 'translateZ(0)' }} />
 

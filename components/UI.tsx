@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye, Pause, Play } from './Icons';
 import { APP_VERSION, STUDIO_NAME, AUTHOR_NAME, COPYRIGHT_NOTICE } from '../constants';
@@ -49,8 +49,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleVision,
   onToggleViewMode
 }) => (
-  <div className="absolute top-0 left-0 w-full p-4 flex flex-col gap-2 z-30 pointer-events-none">
-   <div className="w-full flex justify-between items-start">
+  <div className="absolute top-0 left-0 w-full p-3 flex flex-col gap-2 z-30 pointer-events-none">
+   <div className="w-full flex justify-between items-start gap-2">
     {/* LEFT HUD: TITLE & FLOOR */}
     <div className="flex flex-col gap-2 pointer-events-auto">
       <div className="flex items-center gap-2 bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
@@ -69,9 +69,9 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      <div className="bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg flex items-center gap-3">
+      <div className="bg-[#1d3358] px-3 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg flex items-center gap-2.5">
         <div>
-          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider">Current Floor</div>
+          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider whitespace-nowrap">Floor</div>
           <motion.div
             className="text-2xl font-pixel font-bold text-[#fbbf3c] leading-none"
             key={floor}
@@ -83,15 +83,15 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* DIFFICULTY LEVEL - steps up every 10 floors, matching the pacing tiers */}
-        <div className="border-l-2 border-[#2d4d80] pl-3">
-          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider">Difficulty</div>
+        <div className="border-l-2 border-[#2d4d80] pl-2.5">
+          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider whitespace-nowrap">Level</div>
           <motion.div
             key={getDifficultyLevel(floor)}
             initial={{ scale: 1.4 }}
             animate={{ scale: 1 }}
             className="text-lg font-pixel font-bold text-[#f2901f] leading-none"
           >
-            LV {getDifficultyLevel(floor)}
+            {getDifficultyLevel(floor)}
           </motion.div>
         </div>
 
@@ -267,11 +267,11 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
           ))}
           <rect x={6.04} y={3.04} width={0.92} height={0.92} rx={0.18} fill="#f7f6f2" />
         </svg>
-        <span className="relative z-10 whitespace-nowrap">{isFishActive ? 'YUMMY!' : `FISH ×${fishCount}`}</span>
+        <span className="relative z-10 whitespace-nowrap">{isFishActive ? 'YUMMY!' : `FISH x${fishCount}`}</span>
       </motion.button>
     </div>
     <div className="text-[8px] font-pixel text-[#8fa2c0] uppercase tracking-wider bg-[#12213c]/80 px-3 py-1 rounded-lg pointer-events-none">
-      Earn a fish every 10 floors • Tap an empty tile to place it
+      Earn a fish every 10 floors - Tap an empty tile to place it
     </div>
   </div>
 );
@@ -304,7 +304,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
 
   return (
   <div
-    className="fixed inset-0 z-50 bg-slate-950 select-none overflow-hidden"
+    className="absolute inset-0 z-50 bg-slate-950 select-none overflow-hidden"
     onClick={() => stage === 'REVEAL' && setStage('CARD')}
   >
     <PileReveal />
@@ -330,7 +330,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
     </AnimatePresence>
 
     {stage === 'CARD' && (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-b from-transparent via-black/45 to-black/85 p-4 pb-6">
         <motion.div
           initial={{ scale: 0.85, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -360,7 +360,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
               transition={{ repeat: Infinity, duration: 0.8 }}
               className="mb-4 py-2 px-3 bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold text-xs rounded-xl border-b-4 border-[#d97b12] uppercase tracking-wider"
             >
-              ★ NEW {isNewBestFloor && !isNewHighScore ? 'BEST FLOOR' : 'RECORD'}! ★
+              &#9733; NEW {isNewBestFloor && !isNewHighScore ? 'BEST FLOOR' : 'RECORD'}! &#9733;
             </motion.div>
           ) : floorsShort > 0 && floorsShort <= 15 ? (
             <div className="mb-4 py-2 px-3 bg-[#16294a] text-[#38bdf8] font-pixel text-[10px] rounded-xl border border-[#2d4d80] leading-relaxed">
@@ -453,7 +453,7 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
         <MiniPenguin x={0} y={0} sprite="front" />
         <MiniPenguin x={1} y={1} sprite="right" />
         <text x={2 * MT + MT / 2} y={-6} textAnchor="middle" fontSize="13" fill="#fbbf3c" fontWeight="bold">+5</text>
-        <text x={2 * MT + MT / 2} y={MT * 2 + 4} textAnchor="middle" fontSize="15">👆</text>
+        <text x={2 * MT + MT / 2} y={MT * 2 + 4} textAnchor="middle" fontSize="15">ðŸ‘†</text>
       </svg>
     ),
   },
@@ -472,7 +472,7 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
         }))}
         <MiniPenguin x={2} y={1} sprite="front" />
         {[1, 2, 3].map(x => (
-          <text key={x} x={x * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#166534">✓</text>
+          <text key={x} x={x * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#166534">&#10003;</text>
         ))}
       </svg>
     ),
@@ -491,7 +491,7 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
         <MiniPenguin x={1} y={0} sprite="front" />
         <MiniPenguin x={1} y={1} sprite="back" />
         <MiniPenguin x={1} y={2} sprite="front" />
-        <text x={1 * MT + MT / 2} y={2 * MT - 14} textAnchor="middle" fontSize="12" fontWeight="bold" fill="#166534">✓ HIDDEN</text>
+        <text x={1 * MT + MT / 2} y={2 * MT - 14} textAnchor="middle" fontSize="12" fontWeight="bold" fill="#166534">&#10003; HIDDEN</text>
       </svg>
     ),
   },
@@ -509,7 +509,7 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
           <rect x={0} y={4} width={6} height={12} rx={1} fill="#f59e0b" />
           <circle cx={19} cy={9} r={1.6} fill="#0f172a" />
         </g>
-        <text x={2 * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="12" fill="#f2901f">👀 →</text>
+        <text x={2 * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="12" fill="#f2901f">&#128064; &#8594;</text>
       </svg>
     ),
   },
@@ -529,7 +529,7 @@ export const StartScreen: React.FC<{ onStart: () => void; highScore: number; bes
   const current = TUTORIAL_SLIDES[slide];
 
   return (
-  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4 select-none overflow-y-auto">
+  <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 p-4 select-none overflow-y-auto">
     <MuteButton isMuted={isMuted} onToggleMute={onToggleMute} />
     <motion.div
        initial={{ y: 20, opacity: 0 }}
@@ -599,11 +599,11 @@ export const StartScreen: React.FC<{ onStart: () => void; highScore: number; bes
         onClick={onStart}
         className="w-full py-4 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] text-base active:translate-y-1 active:border-b-2 uppercase tracking-widest transition-all shadow-xl"
       >
-        ▶ PLAY
+        &#9654; PLAY
       </button>
 
       <div className="mt-3 text-[#8fa2c0] font-pixel text-[9px] tracking-wider uppercase opacity-90">
-        {STUDIO_NAME} • {AUTHOR_NAME}
+        {STUDIO_NAME} &bull; {AUTHOR_NAME}
       </div>
     </motion.div>
   </div>

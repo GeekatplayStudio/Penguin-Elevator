@@ -286,7 +286,7 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950 select-none" onClick={onComplete}>
+    <div className="absolute inset-0 z-50 overflow-hidden bg-slate-950 select-none" onClick={onComplete}>
 
       {/* ROOFTOP PARTY SCENE - slides up and away during the dive */}
       <motion.div
@@ -372,7 +372,7 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
           <motion.div key={i} className="absolute font-pixel text-lg" style={{ left: `${x}%`, bottom: '36%', color: [PAL.PINK, PAL.CYAN, PAL.GOLD][i % 3] }}
             animate={{ y: [-4, -54], x: [0, i % 2 ? 12 : -12], opacity: [0, 1, 0], rotate: [0, i % 2 ? 20 : -20] }}
             transition={{ repeat: Infinity, duration: 1.7, delay: i * 0.35 }}>
-            {i % 2 ? 'â™ª' : 'â™«'}
+            {i % 2 ? '♪' : '♫'}
           </motion.div>
         ))}
       </motion.div>
