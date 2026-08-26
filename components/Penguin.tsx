@@ -16,33 +16,11 @@ interface PenguinProps {
 }
 
 /**
- * VOXEL COLOR PALETTE - Exact colors from the reference character sheet
+ * Maps a facing direction to its turnaround sprite. These four PNGs are the
+ * complete set - expressions (sleeping eyelids, grumpy brows) are drawn as
+ * voxel-style overlays in Cinematics.tsx rather than as separate renders.
  */
-const PALETTE = {
-  NAVY_MAIN: '#2B3B60',
-  NAVY_DARK: '#1B2642',
-  NAVY_LIGHT: '#3A4E7A',
-  WHITE_MAIN: '#F8FAFC',
-  WHITE_SHADOW: '#CBD5E1',
-  ORANGE_MAIN: '#F97316',
-  ORANGE_DARK: '#C2410C',
-  PINK_BLUSH: '#F472B6',
-  EYE_PUPIL: '#0F172A',
-  GOLD_CROWN: '#F59E0B',
-  CYAN_SLEEP: '#38BDF8',
-};
-
-/**
- * Gets the exact PNG sprite path based on direction, type, state, and appearance variant.
- * Includes the requested sat-front pose ('sit.png') and character sheet turnaround views.
- */
-const getSpriteInfo = (
-  facingDir: Direction,
-  type: PenguinType['type'],
-  isPanic?: boolean,
-  appearanceVariant: number = 0
-): { src: string; flip?: boolean } => {
-  // Direct Turnaround Directional Sprites from the specially designed sheet
+const getSpriteInfo = (facingDir: Direction): { src: string; flip?: boolean } => {
   switch (facingDir) {
     case 'DOWN':
       return { src: '/sprites/front.png' };
@@ -63,7 +41,7 @@ const PixelPenguinSprite: React.FC<{
   appearanceVariant?: number;
   sizeClass?: string;
 }> = React.memo(({ facingDir, type, isPanic, appearanceVariant = 0, sizeClass }) => {
-  const { src, flip } = getSpriteInfo(facingDir, type, isPanic, appearanceVariant);
+  const { src, flip } = getSpriteInfo(facingDir);
 
   return (
     <div className={clsx('relative flex items-end justify-center select-none', sizeClass ?? 'w-[62px] h-[70px] sm:w-[72px] sm:h-[80px]')}>

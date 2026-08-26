@@ -3,29 +3,19 @@ export const STUDIO_NAME = "Geekatplay Studio";
 export const AUTHOR_NAME = "Vladimir Chopine";
 export const COPYRIGHT_NOTICE = "© Geekatplay Studio by Vladimir Chopine";
 
-export const DEBUG_MODE = false; // Toggle debug mode
-
 export const GRID_SIZE = 4;
 export const MAX_CAPACITY = GRID_SIZE * GRID_SIZE;
 
 export const SCORE_PER_FLOOR = 1;
 
-// Dimensions for 2D Isometric projection
-// Optimized ratio for crisp mobile & desktop scaling
-export const TILE_WIDTH = 110;
-export const TILE_HEIGHT = 55;
-
-// Timings in milliseconds
+// Fixed timings in milliseconds. The boarding and travel durations are NOT
+// here - they scale with the floor, and live in getBoardingTime/getMoveTime
+// in utils/gameLogic.ts so the HUD countdown and the engine can't disagree.
 export const TIMING = {
   STOP_DELAY: 400,        // Time to wait after arriving before door opens
-  BOARDING_TIME: 1400,    // How long the door stays open
   DOOR_ANIMATION: 400,    // Time for door to close
-  MOVE_TIME: 3500,        // Duration of elevator moving to next floor
-  ROTATION_EVENT: 1500,   // When during move phase penguins rotate
   DIZZY_ANIMATION: 450,   // Funny dizzy wobble before the trapdoor opens
   DROP_ANIMATION: 500,    // Time for penguin to fall through trapdoor
   PANIC_DELAY: 3900,      // Time for the witness's 6 slow alarm jumps (6 x 0.6s) before game over screen
   FISH_DISTRACTION: 3500, // How long penguins stay distracted by fish
 };
-
-export const CELL_SIZE = 64; // Fallback

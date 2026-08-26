@@ -564,7 +564,44 @@ Review is typically 24–48 hours.
 
 ## Phase 8 — The update loop
 
-Every release, in order:
+### Shipping v2.0 right now
+
+The repo is prepared: versions are aligned, icons regenerated, dead assets and
+code removed. From a clean checkout:
+
+```bash
+git pull origin main
+npm install
+npx tsc --noEmit          # must be clean
+npm run build             # web assets -> dist/
+```
+
+Then per platform. **On the Mac, for iOS:**
+
+```bash
+npx cap sync ios
+npx cap open ios          # Xcode: Product > Archive > Distribute
+```
+
+Xcode should already read **Version 2.0, Build 3**. Confirm that in the target's
+General tab before archiving — App Store Connect shows whatever is baked into
+the binary, not what is in source.
+
+**For Android (Windows or Mac, needs JDK 21 outside Android Studio):**
+
+```bash
+npx cap sync android
+cd android && ./gradlew bundleRelease
+```
+
+Upload `android/app/build/outputs/bundle/release/app-release.aab` to the Play
+Console. It reports **versionName 2.0, versionCode 2**. Play rejects a
+`versionCode` it has already accepted, so bump it on every upload including
+ones that fail review.
+
+Never run a bare `npx cap sync` from Windows — see the warning in 4.4.
+
+### Every release after this one
 
 ```bash
 # 1. bump versions
@@ -628,15 +665,24 @@ Already in `package.json`, each scoped to its own platform on purpose:
 - [x] No permission usage-description keys in `Info.plist`
 - [x] Only one stored value (`penguin-elevator-hs`), on-device, never sent
 
-**Native behaviour**
+**Native behaviour** — wired in code, still verify on a real device
 
-- [ ] Fake phone bezel disabled on device (`viewMode` forced to `FULLSCREEN`)
-- [ ] Header clears the status bar; controls clear the home indicator
-- [ ] Locked to portrait
-- [ ] High score survives a force-quit
-- [ ] Music stops when backgrounded, resumes on return
-- [ ] Android back button does something sensible
-- [ ] No white flash on cold start
+- [x] Fake phone bezel disabled on device (`viewMode` forced to `FULLSCREEN` via `Capacitor.isNativePlatform()`)
+- [x] Locked to portrait (iOS `Info.plist`, Android `android:screenOrientation="portrait"`)
+- [x] High score survives a force-quit (`@capacitor/preferences`, `localStorage` fallback)
+- [x] Music stops when backgrounded, resumes on return (`appStateChange` listener)
+- [x] Android back button does something sensible (menu from a run, exit from the menu)
+- [ ] Header clears the status bar; controls clear the home indicator — **check on device**
+- [ ] No white flash on cold start — **check on device**
+
+**Version 2.0 release**
+
+- [x] Versions aligned: `package.json` 2.0.0, `APP_VERSION` v2.0, iOS marketing 2.0 / build 3, Android versionName 2.0 / versionCode 2
+- [x] App icons regenerated at true aspect ratio (iOS 1024, Android launcher + adaptive at every density)
+- [x] Dead assets removed — 14 duplicate/unused sprite PNGs (~1.4 MB) deleted; only the four turnaround views ship
+- [x] Dead code removed (`DEBUG_MODE`, `CELL_SIZE`, `TILE_WIDTH/HEIGHT`, unused `TIMING` keys, stale sprite params)
+- [x] No `console.log` / `debugger` in shipped source
+- [x] Build output (`dist/`, `android/app/src/main/assets/public`, `ios/App/App/public`) is gitignored, not committed
 
 **Store**
 
