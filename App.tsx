@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Preferences } from '@capacitor/preferences';
-import { GameState, Penguin, FloatingScore } from './types';
+import { GameState, Penguin, FloatingScore, ElevatorState } from './types';
 import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR } from './constants';
 import { getRandomDirection, checkDropSafety, rotateAllPenguins, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime, getSpawnDirection, getWallFacingDirection, shouldBoardThisFloor } from './utils/gameLogic';
 import { audioManager } from './utils/audio'; 
@@ -32,6 +32,7 @@ function App() {
     fishCount: 1,
     showVisionCones: false,
     isMuted: false,
+    isPaused: false,
     viewMode: Capacitor.isNativePlatform() ? 'FULLSCREEN' : 'MOBILE_SIM',
   });
 
@@ -41,6 +42,20 @@ function App() {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Every timer that drives the elevator cycle is tracked here so PAUSE can
+  // freeze the whole machine (rotation, arrival, door-close) in one sweep.
+  const cycleTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const schedule = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    cycleTimersRef.current.push(id);
+    return id;
+  };
+  const clearCycleTimers = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    cycleTimersRef.current.forEach(id => clearTimeout(id));
+    cycleTimersRef.current = [];
+  };
 
   // Load High Score + Best Floor (Preferences with localStorage fallback)
   useEffect(() => {
@@ -180,15 +195,17 @@ function App() {
       gameOverReason: undefined,
       combo: 0,
       fishTreat: null,
-      fishCount: 1
+      fishCount: 1,
+      isPaused: false
     }));
-    
+
+    clearCycleTimers();
     audioManager.playMusic();
     startFloorCycle();
   };
 
   const startFloorCycle = () => {
-    timerRef.current = setTimeout(() => {
+    timerRef.current = schedule(() => {
       audioManager.playChime();
       setGameState(prev => ({ ...prev, elevatorState: 'BOARDING', combo: 0 }));
       handleBoarding();
@@ -266,13 +283,13 @@ function App() {
 
     const boardingTime = getBoardingTime(gameState.floor);
 
-    timerRef.current = setTimeout(() => {
+    timerRef.current = schedule(() => {
         setGameState(prev => {
-           if (prev.phase !== 'PLAYING') return prev; 
+           if (prev.phase !== 'PLAYING') return prev;
            return { ...prev, elevatorState: 'CLOSING' };
         });
-        
-        setTimeout(() => {
+
+        schedule(() => {
             handleMoving();
         }, TIMING.DOOR_ANIMATION);
     }, boardingTime);
@@ -287,7 +304,7 @@ function App() {
         return { ...prev, elevatorState: 'MOVING' };
     });
 
-    setTimeout(() => {
+    schedule(() => {
       setGameState(prev => {
         if (prev.phase !== 'PLAYING') return prev;
         // Every level the flock shuffles - at least one penguin always turns
@@ -298,7 +315,7 @@ function App() {
       });
     }, rotationEventTime);
 
-    setTimeout(() => {
+    schedule(() => {
       setGameState(prev => {
          if (prev.phase !== 'PLAYING') return prev;
          const nextFloor = prev.floor + 1;
@@ -316,6 +333,45 @@ function App() {
     }, moveTime);
   };
 
+  /**
+   * Pause freezes the elevator machine by clearing every scheduled cycle
+   * timer; resume re-enters the cycle at the current elevator state. The
+   * boarding/travel countdown restarts from the top of its phase - a small,
+   * player-friendly simplification.
+   */
+  const resumeCycle = (state: ElevatorState) => {
+    switch (state) {
+      case 'STOPPED':
+        startFloorCycle();
+        break;
+      case 'BOARDING':
+        timerRef.current = schedule(() => {
+          setGameState(prev => prev.phase !== 'PLAYING' ? prev : { ...prev, elevatorState: 'CLOSING' });
+          schedule(() => handleMoving(), TIMING.DOOR_ANIMATION);
+        }, getBoardingTime(gameState.floor));
+        break;
+      case 'CLOSING':
+        schedule(() => handleMoving(), TIMING.DOOR_ANIMATION);
+        break;
+      case 'MOVING':
+        handleMoving();
+        break;
+    }
+  };
+
+  const togglePause = () => {
+    if (gameState.phase !== 'PLAYING') return;
+    if (!gameState.isPaused) {
+      clearCycleTimers();
+      audioManager.pauseMusic();
+      setGameState(prev => ({ ...prev, isPaused: true }));
+    } else {
+      audioManager.resumeMusic();
+      setGameState(prev => ({ ...prev, isPaused: false }));
+      resumeCycle(gameState.elevatorState);
+    }
+  };
+
   // Places a fish on a random empty tile (for the quick-use button / F key)
   const placeFishAuto = () => {
     const empty = findEmptyCell(gameState.penguins.filter(p => !p.isFalling));
@@ -323,6 +379,7 @@ function App() {
   };
 
   const triggerFishTreat = (x: number = 1, y: number = 1) => {
+    if (gameState.isPaused) return;
     if (gameState.fishCount < 1 || (gameState.fishTreat && gameState.fishTreat.active)) return;
     // Fish can only be placed on an empty square
     if (gameState.penguins.some(p => p.x === x && p.y === y && !p.isFalling)) return;
@@ -344,7 +401,7 @@ function App() {
   };
 
   const handleDrop = useCallback((id: string) => {
-    if (gameState.phase !== 'PLAYING') return;
+    if (gameState.phase !== 'PLAYING' || gameState.isPaused) return;
 
     audioManager.playTrapdoor();
 
@@ -429,7 +486,7 @@ function App() {
         });
       }, TIMING.PANIC_DELAY);
     }
-  }, [gameState.penguins, gameState.phase, gameState.fishTreat, gameState.combo]);
+  }, [gameState.penguins, gameState.phase, gameState.fishTreat, gameState.combo, gameState.isPaused]);
 
   // Keyboard Shortcuts Handler
   useEffect(() => {
@@ -447,10 +504,13 @@ function App() {
       if (e.code === 'KeyV' && gameState.phase === 'PLAYING') {
         setGameState(prev => ({ ...prev, showVisionCones: !prev.showVisionCones }));
       }
+      if ((e.code === 'KeyP' || e.code === 'Escape') && gameState.phase === 'PLAYING') {
+        togglePause();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState.phase]);
+  }, [gameState.phase, gameState.isPaused, gameState.elevatorState]);
 
   useEffect(() => {
     return () => {
@@ -488,26 +548,41 @@ function App() {
               animate={{ opacity: 1 }} 
               className="w-full h-full flex flex-col items-center justify-between relative z-0"
             >
-              <Header 
-                floor={gameState.floor} 
-                score={gameState.score} 
+              <Header
+                floor={gameState.floor}
+                score={gameState.score}
                 combo={gameState.combo}
                 isMuted={gameState.isMuted}
+                isPaused={gameState.isPaused}
+                elevatorState={gameState.elevatorState}
                 showVisionCones={gameState.showVisionCones}
                 viewMode={gameState.viewMode}
                 onToggleMute={handleToggleMute}
+                onTogglePause={togglePause}
                 onToggleVision={() => {
                   setGameState(prev => ({ ...prev, showVisionCones: !prev.showVisionCones }));
                 }}
                 onToggleViewMode={() => {
-                  setGameState(prev => ({ 
-                    ...prev, 
-                    viewMode: prev.viewMode === 'MOBILE_SIM' ? 'FULLSCREEN' : 'MOBILE_SIM' 
+                  setGameState(prev => ({
+                    ...prev,
+                    viewMode: prev.viewMode === 'MOBILE_SIM' ? 'FULLSCREEN' : 'MOBILE_SIM'
                   }));
                 }}
               />
 
-              <FloorTimer elevatorState={gameState.elevatorState} floor={gameState.floor} />
+              {/* PAUSE OVERLAY - blocks the board and freezes the run */}
+              {gameState.isPaused && (
+                <div className="absolute inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-5" onClick={togglePause}>
+                  <div className="font-pixel font-bold text-3xl text-[#efece2] tracking-widest drop-shadow-[0_4px_0_#12213c]">PAUSED</div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); togglePause(); }}
+                    className="px-8 py-3 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"
+                  >
+                    ▶ Resume
+                  </button>
+                  <div className="font-pixel text-[9px] text-[#8fa2c0] uppercase tracking-wider">P or ESC to resume</div>
+                </div>
+              )}
 
               <div className="flex-1 w-full flex items-center justify-center">
                  <Grid 

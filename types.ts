@@ -57,6 +57,7 @@ export interface GameState {
   fishCount: number; // Fish inventory - earn 1 every 10 floors, place on empty tile
   showVisionCones: boolean;
   isMuted: boolean;
+  isPaused: boolean;
   viewMode: 'MOBILE_SIM' | 'FULLSCREEN';
 }
 

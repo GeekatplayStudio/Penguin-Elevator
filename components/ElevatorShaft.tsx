@@ -111,27 +111,9 @@ export const ElevatorShaft: React.FC<ElevatorShaftProps> = ({ elevatorState, flo
         <div className="absolute right-4 top-24 w-1 h-12 bg-cyan-400/30 rounded-full" />
       </motion.div>
 
-      {/* NORTH BACK WALL HEADER PANEL - ENHANCED */}
-      <div className="absolute top-12 left-20 right-20 h-28 bg-gradient-to-b from-slate-800 to-slate-900 border-4 border-slate-950 shadow-2xl flex items-center justify-between px-8 z-10 rounded-lg">
-        <div className="flex items-center gap-3">
-          <motion.div 
-            className="w-4 h-4 rounded-full bg-red-500"
-            animate={{ scale: [1, 1.2, 1], boxShadow: ["0 0 0px rgba(239,68,68,0)", "0 0 20px rgba(239,68,68,0.8)", "0 0 0px rgba(239,68,68,0)"] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-          />
-          <span className="font-pixel text-xs text-cyan-400 uppercase tracking-widest">STATUS</span>
-        </div>
-        <div className="text-center flex-1">
-          <div className="text-[11px] font-pixel text-cyan-400 uppercase tracking-wider mb-2">Elevator</div>
-          <div className="font-pixel text-lg text-amber-300 font-bold">{elevatorState}</div>
-        </div>
-        <div className="text-right">
-          <div className="font-pixel text-[10px] text-slate-400 uppercase tracking-wider mb-2">Level</div>
-          <div className="font-pixel text-2xl font-bold text-amber-400 bg-slate-950/60 px-4 py-2 border-2 border-cyan-400/40 rounded">
-            {floor.toString().padStart(3, '0')}
-          </div>
-        </div>
-      </div>
+      {/* The old STATUS/LEVEL wall panel lived here - removed: it sat directly
+          behind the HUD header and timer, stacking three layers of level info
+          on top of each other. The HUD is now the single source of that info. */}
 
       {/* VERTICAL SPEED LINES WHEN ELEVATOR MOVES - ENHANCED */}
       {isMoving && (

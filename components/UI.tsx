@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye } from './Icons';
+import { Volume2, VolumeX, Smartphone, Monitor, EyeOff, Eye, Pause, Play } from './Icons';
 import { APP_VERSION, STUDIO_NAME, AUTHOR_NAME, COPYRIGHT_NOTICE } from '../constants';
 import { PenguinIcon } from './Penguin';
 import { PileReveal } from './Cinematics';
@@ -25,25 +25,32 @@ interface HeaderProps {
   score: number;
   combo: number;
   isMuted: boolean;
+  isPaused: boolean;
+  elevatorState: string;
   showVisionCones: boolean;
   viewMode: 'MOBILE_SIM' | 'FULLSCREEN';
   onToggleMute: () => void;
+  onTogglePause: () => void;
   onToggleVision: () => void;
   onToggleViewMode: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
-  floor, 
-  score, 
+export const Header: React.FC<HeaderProps> = ({
+  floor,
+  score,
   combo,
   isMuted,
+  isPaused,
+  elevatorState,
   showVisionCones,
   viewMode,
   onToggleMute,
+  onTogglePause,
   onToggleVision,
   onToggleViewMode
 }) => (
-  <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-30 pointer-events-none">
+  <div className="absolute top-0 left-0 w-full p-4 flex flex-col gap-2 z-30 pointer-events-none">
+   <div className="w-full flex justify-between items-start">
     {/* LEFT HUD: TITLE & FLOOR */}
     <div className="flex flex-col gap-2 pointer-events-auto">
       <div className="flex items-center gap-2 bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
@@ -118,6 +125,17 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* QUICK TOGGLE BUTTONS */}
       <div className="flex items-center gap-2 bg-[#1d3358] p-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
+        {/* Pause / Resume */}
+        <motion.button
+          onClick={onTogglePause}
+          className="p-2 bg-[#24406b] hover:bg-[#2d4d80] rounded-xl border-b-2 border-[#16294a] active:scale-90 transition-all"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title={isPaused ? "Resume Game" : "Pause Game"}
+        >
+          {isPaused ? <Play size={18} className="text-[#fbbf3c]" /> : <Pause size={18} className="text-[#efece2]" />}
+        </motion.button>
+
         {/* Mute Toggle */}
         <motion.button
           onClick={onToggleMute}
@@ -128,8 +146,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           {isMuted ? <VolumeX size={18} className="text-[#e2483d]" /> : <Volume2 size={18} className="text-[#efece2]" />}
         </motion.button>
-
-
 
         {/* PC Simulator / Fullscreen View Switcher */}
         <motion.button
@@ -143,6 +159,13 @@ export const Header: React.FC<HeaderProps> = ({
         </motion.button>
       </div>
     </div>
+   </div>
+
+   {/* FLOOR TIMER - in normal flow below the HUD row, so it can never
+       overlap the level info or the buttons regardless of screen size */}
+   <div className="w-full flex justify-center">
+     <FloorTimer elevatorState={isPaused ? 'PAUSED' : elevatorState} floor={floor} />
+   </div>
   </div>
 );
 
@@ -161,7 +184,7 @@ export const FloorTimer: React.FC<{ elevatorState: string; floor: number }> = ({
   const duration = (isBoarding ? getBoardingTime(floor) : getMoveTime(floor)) / 1000;
 
   return (
-    <div className="absolute top-[7.5rem] left-1/2 -translate-x-1/2 z-30 w-48 pointer-events-none">
+    <div className="w-48 pointer-events-none">
       <div className="flex justify-between items-baseline mb-1 px-0.5">
         <span className="font-pixel text-[8px] uppercase tracking-wider text-[#8fa2c0]">
           {isBoarding ? 'Doors close in' : 'Next floor in'}

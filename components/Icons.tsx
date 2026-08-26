@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUp, Eye, EyeOff, AlertTriangle, Volume2, VolumeX, Smartphone, Monitor } from 'lucide-react';
+import { ArrowUp, Eye, EyeOff, AlertTriangle, Volume2, VolumeX, Smartphone, Monitor, Pause, Play } from 'lucide-react';
 
 export const PenguinIcon = ({ className }: { className?: string }) => (
   <svg 
@@ -15,5 +15,5 @@ export const PenguinIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export { ArrowUp, Eye, EyeOff, AlertTriangle, Volume2, VolumeX, Smartphone, Monitor };
+export { ArrowUp, Eye, EyeOff, AlertTriangle, Volume2, VolumeX, Smartphone, Monitor, Pause, Play };
 
