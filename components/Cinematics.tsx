@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, TargetAndTransition } from 'framer-motion';
 
 /**
@@ -372,7 +372,7 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
           <motion.div key={i} className="absolute font-pixel text-lg" style={{ left: `${x}%`, bottom: '36%', color: [PAL.PINK, PAL.CYAN, PAL.GOLD][i % 3] }}
             animate={{ y: [-4, -54], x: [0, i % 2 ? 12 : -12], opacity: [0, 1, 0], rotate: [0, i % 2 ? 20 : -20] }}
             transition={{ repeat: Infinity, duration: 1.7, delay: i * 0.35 }}>
-            {i % 2 ? '♪' : '♫'}
+            {i % 2 ? 'â™ª' : 'â™«'}
           </motion.div>
         ))}
       </motion.div>
@@ -485,85 +485,98 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
 };
 
 /* ============================================================
-   GAME OVER: the floor rides up and away, revealing the pile of
-   grumpy dropped penguins at the bottom of the shaft
+   GAME OVER: the shaft streaks past and lands on a TRAMPOLINE.
+   Every dropped penguin falls in from the top, bounces a couple
+   of times with decreasing height, then hops off and stomps away.
    ============================================================ */
 
-interface PilePenguinSpec {
-  x: number;      // % from left
-  bottom: number; // px from pile base
-  size: number;
-  sprite: string;
-  flip: boolean;
-  tilt: number;
-}
-
-const PILE: PilePenguinSpec[] = [
-  // bottom row - big and half-buried
-  { x: 8, bottom: -8, size: 64, sprite: '/sprites/left.png', flip: false, tilt: -12 },
-  { x: 24, bottom: -4, size: 68, sprite: '/sprites/front.png', flip: false, tilt: 6 },
-  { x: 41, bottom: -8, size: 70, sprite: '/sprites/right.png', flip: true, tilt: -5 },
-  { x: 58, bottom: -4, size: 66, sprite: '/sprites/front.png', flip: true, tilt: 10 },
-  { x: 74, bottom: -8, size: 64, sprite: '/sprites/left.png', flip: true, tilt: 14 },
-  // middle row
-  { x: 16, bottom: 38, size: 60, sprite: '/sprites/right.png', flip: false, tilt: -18 },
-  { x: 33, bottom: 44, size: 62, sprite: '/sprites/front.png', flip: false, tilt: 4 },
-  { x: 51, bottom: 44, size: 60, sprite: '/sprites/left.png', flip: false, tilt: 12 },
-  { x: 67, bottom: 38, size: 58, sprite: '/sprites/front.png', flip: true, tilt: -8 },
-  // upper row
-  { x: 27, bottom: 84, size: 54, sprite: '/sprites/front.png', flip: false, tilt: -6 },
-  { x: 44, bottom: 90, size: 56, sprite: '/sprites/right.png', flip: false, tilt: 8 },
-  { x: 58, bottom: 84, size: 52, sprite: '/sprites/left.png', flip: true, tilt: -14 },
-  // king of the mountain
-  { x: 42, bottom: 128, size: 50, sprite: '/sprites/front.png', flip: false, tilt: 3 },
-];
+/** Voxel trampoline: navy frame and legs, orange mat with a cyan edge.
+    The mat dips in a loop timed to match the incoming landings. */
+const Trampoline: React.FC = () => (
+  <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: 56, width: 200 }}>
+    <svg viewBox="0 0 60 22" className="w-full" style={{ shapeRendering: 'crispEdges' }}>
+      {/* legs */}
+      <rect x={8} y={10} width={4} height={12} fill={PAL.NAVY_DARK} />
+      <rect x={48} y={10} width={4} height={12} fill={PAL.NAVY_DARK} />
+      <rect x={14} y={12} width={3} height={10} fill={PAL.NAVY} />
+      <rect x={43} y={12} width={3} height={10} fill={PAL.NAVY} />
+      {/* frame ring */}
+      <rect x={4} y={8} width={52} height={4} fill={PAL.NAVY} />
+      <rect x={2} y={9} width={4} height={2} fill={PAL.NAVY_DARK} />
+      <rect x={54} y={9} width={4} height={2} fill={PAL.NAVY_DARK} />
+    </svg>
+    {/* the flexing mat sits on top of the frame */}
+    <motion.div
+      className="absolute"
+      style={{ left: '10%', right: '10%', top: 8, height: 12, transformOrigin: 'center top' }}
+      animate={{ scaleY: [1, 1.6, 1, 1], y: [0, 3, 0, 0] }}
+      transition={{ repeat: Infinity, duration: 1.5, times: [0, 0.2, 0.45, 1], delay: 0.4 }}
+    >
+      <div className="w-full h-2.5" style={{ background: PAL.ORANGE, boxShadow: `inset 0 2px 0 ${PAL.GOLD}, inset 0 -1px 0 ${PAL.ORANGE_DARK}` }} />
+      {/* springs */}
+      <div className="w-full flex justify-between px-1" style={{ marginTop: 1 }}>
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} style={{ width: 3, height: 5, background: '#94a3b8' }} />
+        ))}
+      </div>
+    </motion.div>
+  </div>
+);
 
 /**
- * One penguin in the pile: drops in with the mound, sits there fuming, then
- * at its own moment climbs out and stomps off screen - so that by the time
- * the player is looking at the Try Again card, the whole pile is emptying
- * out around it, grumbling all the way.
+ * One dropped penguin: falls from the top of the screen onto the trampoline,
+ * bounces with decreasing height (squashing on each landing), then hops off
+ * to the side and waddles away grumbling.
  */
-const PilePenguin: React.FC<{ p: PilePenguinSpec; index: number }> = ({ p, index }) => {
+const BouncePenguin: React.FC<{ index: number }> = ({ index }) => {
   const [walking, setWalking] = useState(false);
   const dir: 'left' | 'right' = index % 2 === 0 ? 'left' : 'right';
-  // first ones start leaving just as the card appears; the rest trickle out
-  const leaveAt = 2600 + index * 480;
+  const startAt = 1.2 + index * 1.5;   // seconds - one penguin at a time
+  const bounceDur = 2.1;
+  const size = 56 + (index % 3) * 6;
 
   useEffect(() => {
-    const t = setTimeout(() => setWalking(true), leaveAt);
+    const t = setTimeout(() => setWalking(true), (startAt + bounceDur + 0.15) * 1000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <motion.div
-      className="absolute"
-      style={{ left: `${p.x}%`, bottom: p.bottom, width: p.size, height: p.size * 1.14, zIndex: 20 - Math.floor(p.bottom / 40) }}
-      initial={{ y: -30, opacity: 0 }}
-      animate={{ y: 0, opacity: 1, rotate: walking ? 0 : p.tilt }}
-      transition={{ delay: 1.1 + index * 0.05, duration: 0.3, type: 'spring', stiffness: 300, damping: 18 }}
+    <div
+      className="absolute left-1/2"
+      style={{ bottom: 96, width: size, height: size * 1.14, marginLeft: -size / 2, zIndex: 25 }}
     >
-      {/* horizontal march off screen once it's this penguin's turn */}
+      {/* falling + bouncing on the mat, then the walk off */}
       <motion.div
         className="w-full h-full"
-        animate={walking ? { x: dir === 'left' ? -520 : 520 } : { x: 0 }}
+        initial={{ y: -640, opacity: 0 }}
+        animate={walking
+          ? { y: 34, x: dir === 'left' ? -560 : 560, opacity: 1 }
+          : {
+              opacity: [0, 1, 1, 1, 1, 1, 1, 1],
+              y: [-640, 0, -170, 0, -90, 0, -34, 34],
+              scaleY: [1, 0.72, 1.05, 0.78, 1.04, 0.85, 1, 1],
+              transition: {
+                delay: startAt,
+                duration: bounceDur,
+                times: [0, 0.24, 0.42, 0.56, 0.68, 0.78, 0.9, 1],
+                ease: 'easeIn',
+              },
+            }}
         transition={walking ? { duration: 2.6, ease: 'linear' } : undefined}
       >
-        {/* waddle bounce while walking, slow fume-wobble while sitting */}
+        {/* waddle bounce only while walking */}
         <motion.div
           className="w-full h-full relative"
-          animate={walking ? { y: [0, -7, 0] } : { rotate: [0, index % 2 ? 2 : -2, 0] }}
-          transition={walking ? { repeat: Infinity, duration: 0.3 } : { repeat: Infinity, duration: 1.6 + (index % 3) * 0.4 }}
+          animate={walking ? { y: [0, -7, 0] } : { y: 0 }}
+          transition={walking ? { repeat: Infinity, duration: 0.3 } : undefined}
         >
           <img
-            src={walking ? (dir === 'left' ? '/sprites/left.png' : '/sprites/right.png') : p.sprite}
+            src={walking ? (dir === 'left' ? '/sprites/left.png' : '/sprites/right.png') : '/sprites/front.png'}
             alt=""
             className="w-full h-full object-contain"
-            style={{ transform: !walking && p.flip ? 'scaleX(-1)' : undefined }}
           />
           <GrumpyBrowsOverlay />
-          {/* grumble cloud while stomping off */}
           {walking && (
             <motion.div
               className="absolute -top-5 left-1/2 -translate-x-1/2 font-pixel text-[9px] text-[#8fa2c0] whitespace-nowrap"
@@ -575,7 +588,7 @@ const PilePenguin: React.FC<{ p: PilePenguinSpec; index: number }> = ({ p, index
           )}
         </motion.div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -594,10 +607,10 @@ export const PileReveal: React.FC = () => (
     {/* the bottom of the shaft rises into view */}
     <motion.div
       className="absolute inset-x-0 bottom-0"
-      style={{ height: 300 }}
-      initial={{ y: 320 }}
+      style={{ height: 320 }}
+      initial={{ y: 340 }}
       animate={{ y: 0 }}
-      transition={{ duration: 0.9, delay: 0.9, ease: [0.2, 0.8, 0.3, 1] }}
+      transition={{ duration: 0.9, delay: 0.7, ease: [0.2, 0.8, 0.3, 1] }}
     >
       {/* concrete pit floor, voxel-gridded like the game's base */}
       <div className="absolute inset-x-0 bottom-0 h-16" style={{
@@ -606,22 +619,12 @@ export const PileReveal: React.FC = () => (
         boxShadow: 'inset 0 4px 0 #1d3358',
       }} />
 
-      {/* the mountain of grumpy penguins - every one eventually climbs out
-          and stomps off screen while the Try Again card is showing */}
-      <div className="absolute inset-x-0 bottom-10 h-56 max-w-md mx-auto">
-        {PILE.map((p, i) => (
-          <PilePenguin key={i} p={p} index={i} />
-        ))}
+      <Trampoline />
 
-        {/* angry steam puffs off the pile - fade out as the pile empties */}
-        {[30, 50, 66].map((x, i) => (
-          <motion.div key={i} className="absolute font-pixel text-xs text-[#8fa2c0]" style={{ left: `${x}%`, bottom: 150 }}
-            animate={{ y: [-2, -26], opacity: [0, 0.8, 0] }}
-            transition={{ repeat: 4, duration: 1.4, delay: 1.4 + i * 0.45 }}>
-            &#x2668;
-          </motion.div>
-        ))}
-      </div>
+      {/* the dropped passengers raining in, one bounce act at a time */}
+      {Array.from({ length: 6 }).map((_, i) => (
+        <BouncePenguin key={i} index={i} />
+      ))}
     </motion.div>
   </div>
 );

@@ -138,10 +138,12 @@ export const Penguin: React.FC<PenguinProps> = ({
             initial={penguin.isEntering ? { opacity: 0, scale: 0.3, y: -60, rotate: -20 } : { opacity: 0, scale: 0 }}
             animate={penguin.isPanic ? {
                // Exactly 6 alarm jumps (1 cycle + 5 repeats), slow enough to
-               // read clearly: a real vertical hop with a squash on landing,
-               // barely any tilt so it never looks like a flip
+               // read clearly. opacity/scale MUST be present here: values
+               // omitted from an animate target snap back to `initial`
+               // (opacity 0, scale 0) and the witness turns invisible.
+               opacity: 1,
+               scale: [1, 1.1, 0.95, 1],
                y: [0, -38, 0],
-               scaleY: [1, 1.12, 0.9, 1],
                rotate: [0, -4, 4, 0],
                transition: { repeat: 5, duration: 0.6, ease: "easeInOut" }
             } : penguin.isDizzy ? {
