@@ -132,15 +132,34 @@ type IntroStage = 'ROOF' | 'DIVE' | 'DOORS';
 const PartyPenguin: React.FC<{
   sprite: string;
   size: number;
-  anim: 'dance' | 'bob' | 'toast' | 'bath';
+  anim: 'dance' | 'spin' | 'hop' | 'toast' | 'bath';
   accessory?: React.ReactNode;
   flip?: boolean;
-}> = ({ sprite, size, anim, accessory, flip }) => {
-  const animations: Record<'dance' | 'bob' | 'toast' | 'bath', TargetAndTransition> = {
-    dance: { rotate: [-8, 8, -8], y: [0, -10, 0], transition: { repeat: Infinity, duration: 0.5 } },
-    bob: { y: [0, -6, 0], transition: { repeat: Infinity, duration: 0.7 } },
-    toast: { rotate: [0, 6, 0], y: [0, -4, 0], transition: { repeat: Infinity, duration: 0.9 } },
-    bath: { rotate: [86, 90, 86], transition: { repeat: Infinity, duration: 2.2 } },
+  delay?: number;
+}> = ({ sprite, size, anim, accessory, flip, delay = 0 }) => {
+  const animations: Record<'dance' | 'spin' | 'hop' | 'toast' | 'bath', TargetAndTransition> = {
+    // proper dance moves: big jumps, body twists, landing squashes
+    dance: {
+      y: [0, -22, 0, -8, 0],
+      rotate: [-10, 10, -10],
+      scaleY: [1, 1.06, 0.92, 1],
+      transition: { repeat: Infinity, duration: 0.9, delay },
+    },
+    // twirling dancer - flips its facing left/right like it's spinning around
+    spin: {
+      scaleX: [1, 1, -1, -1, 1],
+      y: [0, -16, 0, -16, 0],
+      transition: { repeat: Infinity, duration: 1.4, delay },
+    },
+    // pogo-hopper with a little kick tilt at the top
+    hop: {
+      y: [0, -28, 0],
+      rotate: [0, flip ? -14 : 14, 0],
+      scaleY: [0.94, 1.08, 0.94],
+      transition: { repeat: Infinity, duration: 0.7, delay },
+    },
+    toast: { rotate: [0, 7, 0, 7, 0], y: [0, -5, 0, -5, 0], transition: { repeat: Infinity, duration: 1.6, delay } },
+    bath: { rotate: [86, 90, 86], transition: { repeat: Infinity, duration: 2.2, delay } },
   };
   return (
     <motion.div className="relative" style={{ width: size, height: size * 1.14 }} animate={animations[anim]}>
@@ -155,13 +174,113 @@ const PartyPenguin: React.FC<{
   );
 };
 
+/** Falling voxel confetti - little colored squares tumbling down the scene */
+const Confetti: React.FC = () => (
+  <>
+    {Array.from({ length: 18 }).map((_, i) => {
+      const left = (i * 137) % 100; // scattered but deterministic
+      const color = [PAL.CYAN, PAL.PINK, PAL.GOLD, PAL.LIME, PAL.ORANGE][i % 5];
+      const dur = 2.2 + (i % 4) * 0.5;
+      return (
+        <motion.div
+          key={i}
+          className="absolute"
+          style={{ left: `${left}%`, top: '-4%', width: i % 3 === 0 ? 8 : 6, height: i % 3 === 0 ? 8 : 6, background: color }}
+          animate={{ y: ['0vh', '75vh'], rotate: [0, i % 2 ? 360 : -360], x: [0, i % 2 ? 18 : -18, 0] }}
+          transition={{ repeat: Infinity, duration: dur, delay: (i % 6) * 0.4, ease: 'linear' }}
+        />
+      );
+    })}
+  </>
+);
+
+/** Voxel balloons drifting up past the rooftop */
+const Balloons: React.FC = () => (
+  <>
+    {[
+      { left: 8, color: PAL.PINK, delay: 0 },
+      { left: 88, color: PAL.CYAN, delay: 1.1 },
+      { left: 72, color: PAL.GOLD, delay: 2.0 },
+    ].map((b, i) => (
+      <motion.div
+        key={i}
+        className="absolute"
+        style={{ left: `${b.left}%`, bottom: '20%' }}
+        animate={{ y: [0, -260], x: [0, i % 2 ? 14 : -14, 0], opacity: [0, 1, 1, 0] }}
+        transition={{ repeat: Infinity, duration: 4.5, delay: b.delay, ease: 'easeOut' }}
+      >
+        <svg viewBox="0 0 10 16" className="w-6 h-10" style={{ shapeRendering: 'crispEdges' }}>
+          <rect x={2} y={1} width={6} height={6} fill={b.color} />
+          <rect x={1} y={2} width={8} height={4} fill={b.color} />
+          <rect x={3} y={2} width={2} height={2} fill="#ffffff" opacity={0.5} />
+          <rect x={4} y={7} width={2} height={1} fill={b.color} />
+          <rect x={4.6} y={8} width={0.8} height={7} fill="#ffffff" opacity={0.5} />
+        </svg>
+      </motion.div>
+    ))}
+  </>
+);
+
+/** Spinning voxel disco ball with glints, hung from the string lights */
+const DiscoBall: React.FC = () => (
+  <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '20%' }}>
+    <div className="w-0.5 h-8 bg-[#1B2642] mx-auto" />
+    <motion.svg
+      viewBox="0 0 12 12"
+      className="w-10 h-10"
+      style={{ shapeRendering: 'crispEdges' }}
+      animate={{ rotate: 360 }}
+      transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
+    >
+      <rect x={3} y={1} width={6} height={10} fill="#94a3b8" />
+      <rect x={1} y={3} width={10} height={6} fill="#94a3b8" />
+      <rect x={2} y={2} width={2} height={2} fill="#e2e8f0" />
+      <rect x={7} y={4} width={2} height={2} fill="#f8fafc" />
+      <rect x={4} y={7} width={2} height={2} fill="#e2e8f0" />
+      <rect x={8} y={8} width={2} height={2} fill="#cbd5e1" />
+    </motion.svg>
+    {/* glints thrown off the ball */}
+    {[[-30, 10], [34, 4], [-18, 30], [26, 26]].map(([x, y], i) => (
+      <motion.div
+        key={i}
+        className="absolute"
+        style={{ left: `calc(50% + ${x}px)`, top: 40 + y, width: 5, height: 5, background: '#f8fafc' }}
+        animate={{ opacity: [0, 1, 0], scale: [0.6, 1.3, 0.6] }}
+        transition={{ repeat: Infinity, duration: 0.9, delay: i * 0.35 }}
+      />
+    ))}
+  </div>
+);
+
+/** Flashing checkerboard dance floor, cycling party colors */
+const DanceFloor: React.FC = () => (
+  <div className="absolute left-1/2 -translate-x-1/2 flex" style={{ top: -12, width: '78%', maxWidth: 360 }}>
+    {Array.from({ length: 8 }).map((_, i) => (
+      <motion.div
+        key={i}
+        className="flex-1 h-3"
+        animate={{
+          backgroundColor: [
+            [PAL.CYAN, PAL.PINK, PAL.GOLD, PAL.LIME][i % 4],
+            [PAL.PINK, PAL.GOLD, PAL.LIME, PAL.CYAN][i % 4],
+            [PAL.GOLD, PAL.LIME, PAL.CYAN, PAL.PINK][i % 4],
+            [PAL.CYAN, PAL.PINK, PAL.GOLD, PAL.LIME][i % 4],
+          ],
+          opacity: [0.85, 0.5, 0.85, 0.85],
+        }}
+        transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.1 }}
+      />
+    ))}
+  </div>
+);
+
 export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [stage, setStage] = useState<IntroStage>('ROOF');
 
   useEffect(() => {
-    const t1 = setTimeout(() => setStage('DIVE'), 2400);
-    const t2 = setTimeout(() => setStage('DOORS'), 3800);
-    const t3 = setTimeout(onComplete, 4800);
+    const t1 = setTimeout(() => setStage('DIVE'), 3300);
+    const t2 = setTimeout(() => setStage('DOORS'), 4700);
+    const t3 = setTimeout(onComplete, 5700);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -191,14 +310,39 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
           </motion.svg>
         </div>
 
-        {/* string lights across the top of the party */}
+        {/* sweeping party spotlights from the rooftop corners */}
+        <motion.div
+          className="absolute bottom-[30%] left-[12%] origin-bottom"
+          style={{ width: 60, height: 300, background: `linear-gradient(to top, ${PAL.PINK}44, transparent)`, clipPath: 'polygon(40% 100%, 60% 100%, 100% 0, 0 0)' }}
+          animate={{ rotate: [-24, 24, -24] }}
+          transition={{ repeat: Infinity, duration: 2.6, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-[30%] right-[12%] origin-bottom"
+          style={{ width: 60, height: 300, background: `linear-gradient(to top, ${PAL.CYAN}44, transparent)`, clipPath: 'polygon(40% 100%, 60% 100%, 100% 0, 0 0)' }}
+          animate={{ rotate: [22, -22, 22] }}
+          transition={{ repeat: Infinity, duration: 3.1, ease: 'easeInOut' }}
+        />
+
+        {/* string lights across the top of the party - bulbs blink in sequence */}
         <svg className="absolute left-0 right-0 w-full" style={{ top: '30%' }} viewBox="0 0 100 8" preserveAspectRatio="none">
           <path d="M 0 2 Q 25 7 50 3 Q 75 0 100 4" stroke={PAL.NAVY_DARK} strokeWidth={0.5} fill="none" />
-          {[8, 20, 33, 46, 60, 73, 86].map((x, i) => (
-            <rect key={i} x={x} y={i % 2 === 0 ? 3.4 : 2.2} width={1.6} height={1.6}
-              fill={[PAL.CYAN, PAL.PINK, PAL.GOLD, PAL.LIME][i % 4]} />
-          ))}
         </svg>
+        <div className="absolute left-0 right-0" style={{ top: '30%' }}>
+          {[8, 20, 33, 46, 60, 73, 86].map((x, i) => (
+            <motion.div
+              key={i}
+              className="absolute"
+              style={{ left: `${x}%`, top: i % 2 === 0 ? 14 : 8, width: 7, height: 7, background: [PAL.CYAN, PAL.PINK, PAL.GOLD, PAL.LIME][i % 4] }}
+              animate={{ opacity: [1, 0.25, 1], scale: [1, 1.25, 1] }}
+              transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.12 }}
+            />
+          ))}
+        </div>
+
+        <DiscoBall />
+        <Confetti />
+        <Balloons />
 
         {/* the rooftop slab - same navy voxel language as the game's base platform */}
         <div className="absolute left-0 right-0 bottom-0" style={{ height: '34%' }}>
@@ -208,23 +352,26 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
             backgroundImage: 'repeating-linear-gradient(0deg, transparent 0px, transparent 17px, rgba(20,35,66,0.55) 17px, rgba(20,35,66,0.55) 18px), repeating-linear-gradient(90deg, transparent 0px, transparent 17px, rgba(20,35,66,0.55) 17px, rgba(20,35,66,0.55) 18px)',
           }} />
 
-          {/* beach towel for the sunbather */}
-          <div className="absolute" style={{ left: '6%', top: -6, width: 110, height: 34, background: PAL.ORANGE, boxShadow: `inset 0 0 0 3px ${PAL.ORANGE_DARK}, inset 0 10px 0 ${PAL.GOLD}` }} />
+          <DanceFloor />
 
-          {/* the party */}
-          <div className="absolute left-0 right-0 flex items-end justify-around px-4" style={{ top: -86 }}>
-            <PartyPenguin sprite="/sprites/front.png" size={64} anim="bath" accessory={<SunglassesOverlay />} />
-            <PartyPenguin sprite="/sprites/left.png" size={70} anim="dance" flip />
-            <PartyPenguin sprite="/sprites/front.png" size={78} anim="toast" accessory={<><SunglassesOverlay /><MargaritaOverlay /></>} />
-            <PartyPenguin sprite="/sprites/right.png" size={70} anim="dance" />
-            <PartyPenguin sprite="/sprites/front.png" size={60} anim="bob" accessory={<MargaritaOverlay side="left" />} />
+          {/* beach towel for the sunbather */}
+          <div className="absolute" style={{ left: '4%', top: -6, width: 110, height: 34, background: PAL.ORANGE, boxShadow: `inset 0 0 0 3px ${PAL.ORANGE_DARK}, inset 0 10px 0 ${PAL.GOLD}` }} />
+
+          {/* the party - jumpers, spinners, hoppers and one committed sunbather */}
+          <div className="absolute left-0 right-0 flex items-end justify-around px-3" style={{ top: -92 }}>
+            <PartyPenguin sprite="/sprites/front.png" size={62} anim="bath" accessory={<SunglassesOverlay />} />
+            <PartyPenguin sprite="/sprites/front.png" size={70} anim="spin" delay={0.2} />
+            <PartyPenguin sprite="/sprites/front.png" size={80} anim="dance" accessory={<><SunglassesOverlay /><MargaritaOverlay /></>} />
+            <PartyPenguin sprite="/sprites/right.png" size={68} anim="hop" delay={0.35} />
+            <PartyPenguin sprite="/sprites/left.png" size={64} anim="dance" flip delay={0.5} accessory={<MargaritaOverlay side="left" />} />
           </div>
         </div>
 
         {/* music notes drifting up */}
-        {[18, 42, 68, 84].map((x, i) => (
-          <motion.div key={i} className="absolute font-pixel text-lg" style={{ left: `${x}%`, bottom: '36%', color: i % 2 ? PAL.PINK : PAL.CYAN }}
-            animate={{ y: [-4, -40], opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1.6, delay: i * 0.4 }}>
+        {[14, 30, 52, 70, 88].map((x, i) => (
+          <motion.div key={i} className="absolute font-pixel text-lg" style={{ left: `${x}%`, bottom: '36%', color: [PAL.PINK, PAL.CYAN, PAL.GOLD][i % 3] }}
+            animate={{ y: [-4, -54], x: [0, i % 2 ? 12 : -12], opacity: [0, 1, 0], rotate: [0, i % 2 ? 20 : -20] }}
+            transition={{ repeat: Infinity, duration: 1.7, delay: i * 0.35 }}>
             {i % 2 ? '♪' : '♫'}
           </motion.div>
         ))}
@@ -255,16 +402,57 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
               backgroundPositionX: '31%',
             }}
           />
-          {/* speed lines */}
+          {/* vertical guide rails on both shaft walls, dashes streaking upward */}
+          {['6%', '12%'].map((left, i) => (
+            <React.Fragment key={i}>
+              <div className="absolute top-0 bottom-0" style={{ left, width: 6, background: '#1d3358' }} />
+              <div className="absolute top-0 bottom-0" style={{ right: left, width: 6, background: '#1d3358' }} />
+            </React.Fragment>
+          ))}
           <motion.div
-            className="absolute inset-0"
-            animate={{ backgroundPositionY: ['0px', '-3400px'] }}
-            transition={{ duration: 1.6, ease: 'easeIn' }}
+            className="absolute top-0 bottom-0"
             style={{
-              backgroundImage: 'repeating-linear-gradient(to bottom, rgba(56,189,248,0.16) 0px, rgba(56,189,248,0.16) 26px, transparent 26px, transparent 120px)',
-              backgroundSize: '3px 120px, 100% 120px',
+              left: '8.5%', width: 3,
+              backgroundImage: 'repeating-linear-gradient(to bottom, #38bdf8 0px, #38bdf8 22px, transparent 22px, transparent 70px)',
             }}
+            animate={{ backgroundPositionY: ['0px', '-2800px'] }}
+            transition={{ duration: 1.6, ease: 'easeIn' }}
           />
+          <motion.div
+            className="absolute top-0 bottom-0"
+            style={{
+              right: '8.5%', width: 3,
+              backgroundImage: 'repeating-linear-gradient(to bottom, #38bdf8 0px, #38bdf8 22px, transparent 22px, transparent 70px)',
+            }}
+            animate={{ backgroundPositionY: ['0px', '-2800px'] }}
+            transition={{ duration: 1.6, ease: 'easeIn' }}
+          />
+
+          {/* the elevator's steel cables running up the middle of the shaft */}
+          {['38%', '61%'].map((left, i) => (
+            <motion.div
+              key={i}
+              className="absolute top-0 bottom-0"
+              style={{
+                left, width: 4,
+                backgroundImage: 'repeating-linear-gradient(to bottom, #475569 0px, #475569 34px, #64748b 34px, #64748b 40px)',
+              }}
+              animate={{ backgroundPositionY: ['0px', '-3200px'] }}
+              transition={{ duration: 1.6, ease: 'easeIn', delay: i * 0.04 }}
+            />
+          ))}
+
+          {/* short vertical speed streaks scattered across the frame */}
+          {[22, 30, 48, 55, 72, 80].map((x, i) => (
+            <motion.div
+              key={i}
+              className="absolute"
+              style={{ left: `${x}%`, top: '-10%', width: 3, height: 46, background: 'rgba(56,189,248,0.35)', borderRadius: 2 }}
+              animate={{ y: ['0vh', '120vh'] }}
+              transition={{ repeat: Infinity, duration: 0.4 + (i % 3) * 0.12, ease: 'linear', delay: i * 0.07 }}
+            />
+          ))}
+
           <div className="absolute inset-x-0 top-6 text-center font-pixel text-[10px] tracking-[0.3em] text-[#8fa2c0] uppercase">Going down...</div>
         </motion.div>
       )}
@@ -301,7 +489,7 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
    grumpy dropped penguins at the bottom of the shaft
    ============================================================ */
 
-interface PilePenguin {
+interface PilePenguinSpec {
   x: number;      // % from left
   bottom: number; // px from pile base
   size: number;
@@ -310,7 +498,7 @@ interface PilePenguin {
   tilt: number;
 }
 
-const PILE: PilePenguin[] = [
+const PILE: PilePenguinSpec[] = [
   // bottom row - big and half-buried
   { x: 8, bottom: -8, size: 64, sprite: '/sprites/left.png', flip: false, tilt: -12 },
   { x: 24, bottom: -4, size: 68, sprite: '/sprites/front.png', flip: false, tilt: 6 },
@@ -330,34 +518,66 @@ const PILE: PilePenguin[] = [
   { x: 42, bottom: 128, size: 50, sprite: '/sprites/front.png', flip: false, tilt: 3 },
 ];
 
-const WalkAway: React.FC<{ fromX: number; dir: 'left' | 'right'; delay: number; size: number }> = ({ fromX, dir, delay, size }) => (
-  <motion.div
-    className="absolute"
-    style={{ left: `${fromX}%`, bottom: 4, width: size, height: size * 1.14 }}
-    initial={{ x: 0, opacity: 0 }}
-    animate={{
-      x: dir === 'left' ? -420 : 420,
-      opacity: [0, 1, 1, 1],
-      y: [0, -7, 0, -7, 0, -7, 0, -7, 0],
-    }}
-    transition={{ duration: 3.2, delay, ease: 'linear' }}
-  >
-    <img
-      src={dir === 'left' ? '/sprites/left.png' : '/sprites/right.png'}
-      alt=""
-      className="w-full h-full object-contain"
-    />
-    <GrumpyBrowsOverlay />
-    {/* grumble cloud */}
+/**
+ * One penguin in the pile: drops in with the mound, sits there fuming, then
+ * at its own moment climbs out and stomps off screen - so that by the time
+ * the player is looking at the Try Again card, the whole pile is emptying
+ * out around it, grumbling all the way.
+ */
+const PilePenguin: React.FC<{ p: PilePenguinSpec; index: number }> = ({ p, index }) => {
+  const [walking, setWalking] = useState(false);
+  const dir: 'left' | 'right' = index % 2 === 0 ? 'left' : 'right';
+  // first ones start leaving just as the card appears; the rest trickle out
+  const leaveAt = 2600 + index * 480;
+
+  useEffect(() => {
+    const t = setTimeout(() => setWalking(true), leaveAt);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
     <motion.div
-      className="absolute -top-5 left-1/2 -translate-x-1/2 font-pixel text-[9px] text-[#8fa2c0] whitespace-nowrap"
-      animate={{ opacity: [0, 1, 0] }}
-      transition={{ repeat: Infinity, duration: 1.2, delay }}
+      className="absolute"
+      style={{ left: `${p.x}%`, bottom: p.bottom, width: p.size, height: p.size * 1.14, zIndex: 20 - Math.floor(p.bottom / 40) }}
+      initial={{ y: -30, opacity: 0 }}
+      animate={{ y: 0, opacity: 1, rotate: walking ? 0 : p.tilt }}
+      transition={{ delay: 1.1 + index * 0.05, duration: 0.3, type: 'spring', stiffness: 300, damping: 18 }}
     >
-      %&#!
+      {/* horizontal march off screen once it's this penguin's turn */}
+      <motion.div
+        className="w-full h-full"
+        animate={walking ? { x: dir === 'left' ? -520 : 520 } : { x: 0 }}
+        transition={walking ? { duration: 2.6, ease: 'linear' } : undefined}
+      >
+        {/* waddle bounce while walking, slow fume-wobble while sitting */}
+        <motion.div
+          className="w-full h-full relative"
+          animate={walking ? { y: [0, -7, 0] } : { rotate: [0, index % 2 ? 2 : -2, 0] }}
+          transition={walking ? { repeat: Infinity, duration: 0.3 } : { repeat: Infinity, duration: 1.6 + (index % 3) * 0.4 }}
+        >
+          <img
+            src={walking ? (dir === 'left' ? '/sprites/left.png' : '/sprites/right.png') : p.sprite}
+            alt=""
+            className="w-full h-full object-contain"
+            style={{ transform: !walking && p.flip ? 'scaleX(-1)' : undefined }}
+          />
+          <GrumpyBrowsOverlay />
+          {/* grumble cloud while stomping off */}
+          {walking && (
+            <motion.div
+              className="absolute -top-5 left-1/2 -translate-x-1/2 font-pixel text-[9px] text-[#8fa2c0] whitespace-nowrap"
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ repeat: Infinity, duration: 1.1 }}
+            >
+              %&#!
+            </motion.div>
+          )}
+        </motion.div>
+      </motion.div>
     </motion.div>
-  </motion.div>
-);
+  );
+};
 
 export const PileReveal: React.FC = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -386,42 +606,22 @@ export const PileReveal: React.FC = () => (
         boxShadow: 'inset 0 4px 0 #1d3358',
       }} />
 
-      {/* the mountain of grumpy penguins */}
+      {/* the mountain of grumpy penguins - every one eventually climbs out
+          and stomps off screen while the Try Again card is showing */}
       <div className="absolute inset-x-0 bottom-10 h-56 max-w-md mx-auto">
         {PILE.map((p, i) => (
-          <motion.div
-            key={i}
-            className="absolute"
-            style={{ left: `${p.x}%`, bottom: p.bottom, width: p.size, height: p.size * 1.14, zIndex: 20 - Math.floor(p.bottom / 40) }}
-            initial={{ y: -30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1, rotate: p.tilt }}
-            transition={{ delay: 1.1 + i * 0.05, duration: 0.3, type: 'spring', stiffness: 300, damping: 18 }}
-          >
-            <motion.div
-              className="w-full h-full"
-              animate={{ rotate: [0, i % 2 ? 2 : -2, 0] }}
-              transition={{ repeat: Infinity, duration: 1.6 + (i % 3) * 0.4 }}
-            >
-              <img src={p.sprite} alt="" className="w-full h-full object-contain" style={{ transform: p.flip ? 'scaleX(-1)' : undefined }} />
-              <GrumpyBrowsOverlay />
-            </motion.div>
-          </motion.div>
+          <PilePenguin key={i} p={p} index={i} />
         ))}
 
-        {/* angry steam puffs off the pile */}
+        {/* angry steam puffs off the pile - fade out as the pile empties */}
         {[30, 50, 66].map((x, i) => (
           <motion.div key={i} className="absolute font-pixel text-xs text-[#8fa2c0]" style={{ left: `${x}%`, bottom: 150 }}
             animate={{ y: [-2, -26], opacity: [0, 0.8, 0] }}
-            transition={{ repeat: Infinity, duration: 1.4, delay: 1.4 + i * 0.45 }}>
+            transition={{ repeat: 4, duration: 1.4, delay: 1.4 + i * 0.45 }}>
             &#x2668;
           </motion.div>
         ))}
       </div>
-
-      {/* survivors stomping off */}
-      <WalkAway fromX={30} dir="left" delay={2.0} size={54} />
-      <WalkAway fromX={55} dir="right" delay={2.4} size={58} />
-      <WalkAway fromX={44} dir="left" delay={2.9} size={48} />
     </motion.div>
   </div>
 );

@@ -137,12 +137,13 @@ export const Penguin: React.FC<PenguinProps> = ({
             key="penguin-pixel-body"
             initial={penguin.isEntering ? { opacity: 0, scale: 0.3, y: -60, rotate: -20 } : { opacity: 0, scale: 0 }}
             animate={penguin.isPanic ? {
-               // Exactly 6 alarm jumps (1 cycle + 5 repeats), then it settles -
-               // long enough to point at the witness, short enough to read as a yelp
-               y: [0, -34, 0],
-               scale: [1, 1.22, 1],
-               rotate: [0, -10, 10, 0],
-               transition: { repeat: 5, duration: 0.38, ease: "easeInOut" }
+               // Exactly 6 alarm jumps (1 cycle + 5 repeats), slow enough to
+               // read clearly: a real vertical hop with a squash on landing,
+               // barely any tilt so it never looks like a flip
+               y: [0, -38, 0],
+               scaleY: [1, 1.12, 0.9, 1],
+               rotate: [0, -4, 4, 0],
+               transition: { repeat: 5, duration: 0.6, ease: "easeInOut" }
             } : penguin.isDizzy ? {
                // Funny dizzy wobble right before the trapdoor opens
                opacity: 1,

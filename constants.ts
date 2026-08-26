@@ -24,7 +24,7 @@ export const TIMING = {
   ROTATION_EVENT: 1500,   // When during move phase penguins rotate
   DIZZY_ANIMATION: 450,   // Funny dizzy wobble before the trapdoor opens
   DROP_ANIMATION: 500,    // Time for penguin to fall through trapdoor
-  PANIC_DELAY: 2600,      // Time for multi-jump screaming before game over screen
+  PANIC_DELAY: 3900,      // Time for the witness's 6 slow alarm jumps (6 x 0.6s) before game over screen
   FISH_DISTRACTION: 3500, // How long penguins stay distracted by fish
 };
 
