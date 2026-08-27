@@ -1,6 +1,6 @@
 # Privacy Policy — Penguin Elevator
 
-Last updated: August 19, 2026
+Last updated: August 27, 2026
 
 Penguin Elevator is developed by Vladimir Chopine (Geekatplay Studio).
 
@@ -28,10 +28,10 @@ nothing about your device or your play can leave it.
 
 ## Local Storage
 
-The App stores exactly one value on your device: your best score, saved as a
-number under the key `penguin-elevator-hs`. It is written to your device's
-local app storage, is never transmitted anywhere, and is deleted when you
-uninstall the App.
+The App stores two numbers on your device, both of them your own results:
+your best score (`penguin-elevator-hs`) and the highest floor you have reached
+(`penguin-elevator-bf`). They are written to your device's local app storage,
+are never transmitted anywhere, and are deleted when you uninstall the App.
 
 Nothing else is stored — no identifiers, no device information, no usage logs,
 no cookies.
@@ -44,10 +44,17 @@ networks. Your score stays on your device.
 
 ## Permissions
 
-The App requests **no permissions**. It does not access your location, camera,
-microphone, contacts, photos, calendar, health data, or notifications, and it
-does not use any advertising or tracking identifier (no IDFA, no App Tracking
-Transparency prompt, because there is nothing to track).
+On iOS the App requests **no permissions at all**.
+
+On Android it declares exactly one: `VIBRATE`, used only to buzz the phone when
+a penguin drops. Android grants it without prompting and it reveals nothing
+about you. The App does **not** hold the `INTERNET` permission — it is not
+capable of network access.
+
+The App does not access your location, camera, microphone, contacts, photos,
+calendar, health data, or notifications, and it does not use any advertising or
+tracking identifier (no IDFA, no App Tracking Transparency prompt, because
+there is nothing to track).
 
 ## Third-Party Services
 

@@ -1,6 +1,15 @@
 import path from 'path';
+import { readFileSync } from 'fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+// SINGLE SOURCE OF TRUTH for the version string: package.json. It used to be
+// retyped in index.html and constants.ts as well, and both drifted - the page
+// still advertised "v3.0.0-mobile" while the app rendered v2.0. Everything
+// user-visible now derives from this one value at build time.
+const APP_VERSION = JSON.parse(
+  readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')
+).version as string;
 
 // Port selection, in order of preference:
 //   1. PORT env var, if the launcher assigned one
@@ -29,7 +38,18 @@ export default defineConfig({
     strictPort: false,
     host: '0.0.0.0',
   },
-  plugins: [react()],
+  define: {
+    // consumed by constants.ts
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
+  plugins: [
+    react(),
+    {
+      // stamps <meta name="version" content="%APP_VERSION%"> in index.html
+      name: 'stamp-app-version',
+      transformIndexHtml: (html: string) => html.split('%APP_VERSION%').join(APP_VERSION),
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),

@@ -36,7 +36,14 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!-- Permissions.
 
-    <uses-permission android:name="android.permission.INTERNET" />
+         INTERNET is deliberately NOT declared. The game is fully offline:
+         Capacitor serves the web bundle through WebViewAssetLoader, which
+         answers every request in-process via shouldInterceptRequest and never
+         opens a socket. Declaring INTERNET would make Play advertise "full
+         network access" on a listing that promises the opposite.
+
+         VIBRATE is merged in from @capacitor/haptics and is the only
+         permission the shipped app holds. -->
 </manifest>

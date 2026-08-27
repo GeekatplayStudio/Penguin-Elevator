@@ -14,7 +14,7 @@
 ```
 
 [![Geekatplay Studio](https://img.shields.io/badge/Developed%20By-Geekatplay%20Studio-orange.svg)](https://github.com/GeekatplayStudio)
-[![Version](https://img.shields.io/badge/Version-v3.0.0--mobile-22c55e.svg)](#)
+[![Version](https://img.shields.io/badge/Version-v2.1-22c55e.svg)](#)
 
 </div>
 
@@ -73,10 +73,19 @@ never be committed.
 The build loop is:
 
 ```bash
-npm run build      # web assets -> dist/
-npx cap sync       # dist/ -> native projects
-npx cap open android
+npm run android    # build -> sync android -> open Android Studio
 ```
+
+```bash
+npm run ios        # build -> sync ios -> open Xcode   (Mac only)
+```
+
+> **Always scope `cap sync` to one platform.** A bare `npx cap sync` run from
+> Windows rewrites `ios/App/CapApp-SPM/Package.swift` with backslash paths and
+> breaks SwiftPM resolution on the Mac. The npm scripts above already pass the
+> platform; if you call the CLI directly, use `npx cap sync android`.
+
+Shipping a release? See **[RELEASING.md](RELEASING.md)**.
 
 ---
 
@@ -137,8 +146,8 @@ connection.** Full policy: [privacy-policy.md](privacy-policy.md).
 | Data collected | **None.** No accounts, no login, no email, no forms, no device identifiers. |
 | Analytics / ads | **None.** No tracking SDKs of any kind, and no ATT prompt is needed. |
 | Sharing / social | **None.** No share sheet, leaderboard, friend list, multiplayer, or external links. |
-| Stored on device | One value — your high score — under `penguin-elevator-hs`. Never transmitted; removed on uninstall. |
-| Permissions | **None requested.** No location, camera, microphone, contacts, photos, or notifications. |
+| Stored on device | Two numbers — your high score (`penguin-elevator-hs`) and best floor (`penguin-elevator-bf`). Never transmitted; removed on uninstall. |
+| Permissions | **iOS: none. Android: `VIBRATE` only**, for drop haptics. `INTERNET` is deliberately not declared, so the app cannot reach the network even in principle. |
 
 Both the App Store privacy label and Google Play Data Safety should be filled
 in as **"Data Not Collected"** in every category.

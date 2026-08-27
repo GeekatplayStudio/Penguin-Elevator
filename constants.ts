@@ -1,4 +1,5 @@
-export const APP_VERSION = "v2.0";
+// Injected by Vite from package.json - never edit the version here.
+export const APP_VERSION = `v${__APP_VERSION__}`;
 export const STUDIO_NAME = "Geekatplay Studio";
 export const AUTHOR_NAME = "Vladimir Chopine";
 export const COPYRIGHT_NOTICE = "© Geekatplay Studio by Vladimir Chopine";
