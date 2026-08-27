@@ -101,9 +101,15 @@ const StaticBoard = React.memo(() => {
       const seamColor = isAlt ? '#211f1d' : '#d6d2c5';
       const ox = x * TILE_W;
       const oy = y * TILE_H;
+      // Only the last row's front lip is actually visible - every other row's
+      // lip is covered by the tile below it. Where it IS visible, the block's
+      // face has to be finished: the vertical seams and the outline run down
+      // over it, or the bottom row reads as a half-drawn square.
+      const lipShows = y === GRID_SIZE - 1;
+      const faceH = TILE_H + (lipShows ? TILE_LIP : 0);
       const seams: React.ReactNode[] = [];
       for (let i = 1; i < 4; i++) {
-        seams.push(<line key={'v' + i} x1={ox + (i * TILE_W) / 4} y1={oy} x2={ox + (i * TILE_W) / 4} y2={oy + TILE_H} stroke={seamColor} strokeWidth="1.2" />);
+        seams.push(<line key={'v' + i} x1={ox + (i * TILE_W) / 4} y1={oy} x2={ox + (i * TILE_W) / 4} y2={oy + faceH} stroke={seamColor} strokeWidth="1.2" />);
         seams.push(<line key={'h' + i} x1={ox} y1={oy + (i * TILE_H) / 4} x2={ox + TILE_W} y2={oy + (i * TILE_H) / 4} stroke={seamColor} strokeWidth="1.2" />);
       }
       tiles.push(
@@ -115,7 +121,7 @@ const StaticBoard = React.memo(() => {
           {seams}
           {/* baked top-light: plain alpha gradient, NO mix-blend-mode */}
           <rect x={ox} y={oy} width={TILE_W} height={TILE_H} fill="url(#tileLight)" />
-          <rect x={ox + 0.5} y={oy + 0.5} width={TILE_W - 1} height={TILE_H - 1} fill="none" stroke={seamColor} strokeWidth="1.5" />
+          <rect x={ox + 0.5} y={oy + 0.5} width={TILE_W - 1} height={faceH - 1} fill="none" stroke={seamColor} strokeWidth="1.5" />
         </g>
       );
     }
@@ -158,11 +164,16 @@ interface TileOverlayProps {
 const TileOverlay = React.memo<TileOverlayProps>(({ x, y, isOpen, isMonitored, showVision, teachOpacity, onTilePress }) => {
   const pos = getGridPos(x, y);
   const showTint = !isOpen && isMonitored && (showVision || teachOpacity > 0.01);
+  // Match StaticBoard: on the last row the front lip is exposed, so the
+  // watched-tile marking has to cover it as well - otherwise the bottom row's
+  // red squares look clipped compared to every other row. It widens the tap
+  // target by the same 14px, which is no loss on a phone.
+  const cellH = TILE_H + (y === GRID_SIZE - 1 ? TILE_LIP : 0);
 
   return (
     <div
       className="absolute select-none touch-manipulation cursor-pointer"
-      style={{ left: pos.left, top: pos.top, width: TILE_W, height: TILE_H, zIndex: 5 }}
+      style={{ left: pos.left, top: pos.top, width: TILE_W, height: cellH, zIndex: 5 }}
       onClick={(e) => { e.stopPropagation(); onTilePress(x, y); }}
     >
       {/* WATCHED-CELL MARKING - a fill plus a border ring. The ring matters:
