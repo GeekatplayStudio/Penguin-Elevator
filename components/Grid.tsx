@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameState, FloatingScore } from '../types';
 import { GRID_SIZE } from '../constants';
@@ -28,108 +28,126 @@ export const getGridPos = (x: number, y: number) => ({
 const BOARD_W = GRID_SIZE * TILE_W;
 const BOARD_H = GRID_SIZE * TILE_H + TILE_LIP;
 
-interface SquareTileProps {
+/* ------------------------------------------------------------------ *
+ * RENDERING ARCHITECTURE (WebView performance)
+ *
+ * The board is split into three layers so a state change repaints the
+ * least possible area. This replaced a version where all 16 tiles were
+ * full SVGs re-rendered on every game tick, each with a mix-blend-mode
+ * overlay - mid-range Android composited them tile by tile, which the
+ * player saw as squares flickering in one at a time.
+ *
+ *   1. StaticBoard  - every tile face, seam, lip and lighting baked
+ *                     into ONE SVG that never re-renders (React.memo
+ *                     with no props). No blend modes, no filters.
+ *   2. TileOverlay  - per-tile dynamic bits only: the watched tint,
+ *                     the open trapdoor hole, and the tap target.
+ *                     Memoized; most ticks change none of them.
+ *   3. Actor layer  - penguins, fish, floating scores. Re-renders
+ *                     follow gameplay, never touch layers 1-2.
+ * ------------------------------------------------------------------ */
+
+/** Layer 1: the whole checkerboard painted once. */
+const StaticBoard = React.memo(() => {
+  const tiles: React.ReactNode[] = [];
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const isAlt = (x + y) % 2 === 1;
+      const topColor = isAlt ? '#33322e' : '#efece2';
+      const lipColor = isAlt ? '#1d1c1a' : '#c3bfb2';
+      const seamColor = isAlt ? '#211f1d' : '#d6d2c5';
+      const ox = x * TILE_W;
+      const oy = y * TILE_H;
+      const seams: React.ReactNode[] = [];
+      for (let i = 1; i < 4; i++) {
+        seams.push(<line key={'v' + i} x1={ox + (i * TILE_W) / 4} y1={oy} x2={ox + (i * TILE_W) / 4} y2={oy + TILE_H} stroke={seamColor} strokeWidth="1.2" />);
+        seams.push(<line key={'h' + i} x1={ox} y1={oy + (i * TILE_H) / 4} x2={ox + TILE_W} y2={oy + (i * TILE_H) / 4} stroke={seamColor} strokeWidth="1.2" />);
+      }
+      tiles.push(
+        <g key={x + '-' + y}>
+          {/* front lip only shows where the row below does not cover it,
+              but drawing it everywhere is harmless and keeps this simple */}
+          <rect x={ox} y={oy + TILE_H} width={TILE_W} height={TILE_LIP} fill={lipColor} />
+          <rect x={ox} y={oy} width={TILE_W} height={TILE_H} fill={topColor} />
+          {seams}
+          {/* baked top-light: plain alpha gradient, NO mix-blend-mode */}
+          <rect x={ox} y={oy} width={TILE_W} height={TILE_H} fill="url(#tileLight)" />
+          <rect x={ox + 0.5} y={oy + 0.5} width={TILE_W - 1} height={TILE_H - 1} fill="none" stroke={seamColor} strokeWidth="1.5" />
+        </g>
+      );
+    }
+  }
+  return (
+    <svg
+      width={BOARD_W}
+      height={BOARD_H}
+      viewBox={'0 0 ' + BOARD_W + ' ' + BOARD_H}
+      className="absolute left-0 top-0 pointer-events-none"
+    >
+      <defs>
+        <linearGradient id="tileLight" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.10)" />
+          <stop offset="100%" stopColor="rgba(0,0,0,0.12)" />
+        </linearGradient>
+        <radialGradient id="tileHole" cx="50%" cy="40%" r="75%">
+          <stop offset="0%" stopColor="#1b3550" />
+          <stop offset="55%" stopColor="#0a1024" />
+          <stop offset="100%" stopColor="#05070f" />
+        </radialGradient>
+      </defs>
+      {tiles}
+    </svg>
+  );
+});
+StaticBoard.displayName = 'StaticBoard';
+
+/** Layer 2: one tile's dynamic overlay - tint, hole, tap target. */
+interface TileOverlayProps {
   x: number;
   y: number;
   isOpen: boolean;
   isMonitored: boolean;
   showVision: boolean;
   teachOpacity: number; // training-wheels tint strength, fades out by floor 50
-  onClick: () => void;
-  children?: React.ReactNode;
+  onTilePress: (x: number, y: number) => void;
 }
 
-const SquareTile: React.FC<SquareTileProps> = ({
-  x,
-  y,
-  isOpen,
-  isMonitored,
-  showVision,
-  teachOpacity,
-  onClick,
-  children
-}) => {
+const TileOverlay = React.memo<TileOverlayProps>(({ x, y, isOpen, isMonitored, showVision, teachOpacity, onTilePress }) => {
   const pos = getGridPos(x, y);
-  const isAlt = (x + y) % 2 === 1;
-  const holeGradId = `tileHole-${x}-${y}`;
-
-  // Checkerboard palette from the platform reference: cream and charcoal tops
-  const topColor = isAlt ? '#33322e' : '#efece2';
-  const lipColor = isAlt ? '#1d1c1a' : '#c3bfb2';
-  const seamColor = isAlt ? '#211f1d' : '#d6d2c5';
+  const showTint = !isOpen && isMonitored && (showVision || teachOpacity > 0.01);
 
   return (
     <div
-      className="absolute select-none touch-manipulation"
-      style={{
-        left: pos.left,
-        top: pos.top,
-        width: TILE_W,
-        height: TILE_H + TILE_LIP,
-        zIndex: y * 10,
-      }}
+      className="absolute select-none touch-manipulation cursor-pointer"
+      style={{ left: pos.left, top: pos.top, width: TILE_W, height: TILE_H, zIndex: 5 }}
+      onClick={(e) => { e.stopPropagation(); onTilePress(x, y); }}
     >
-      <svg
-        viewBox={`0 0 ${TILE_W} ${TILE_H + TILE_LIP}`}
-        className="w-full h-full cursor-pointer"
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
-      >
-        <defs>
-          <radialGradient id={holeGradId} cx="50%" cy="40%" r="75%">
-            <stop offset="0%" stopColor="#1b3550" />
-            <stop offset="55%" stopColor="#0a1024" />
-            <stop offset="100%" stopColor="#05070f" />
-          </radialGradient>
-        </defs>
+      {/* WATCHED-CELL TINT - a plain div, no SVG repaint involved */}
+      {showTint && (
+        <div
+          className="absolute rounded"
+          style={{
+            left: 2, top: 2, right: 2, bottom: 2,
+            background: '#e2483d',
+            opacity: showVision ? 0.35 : teachOpacity,
+          }}
+        />
+      )}
 
-        {/* FRONT LIP - the block's visible depth edge */}
-        <rect x={0} y={TILE_H} width={TILE_W} height={TILE_LIP} fill={lipColor} />
-
-        {!isOpen ? (
-          <g className="hover:brightness-110">
-            {/* TOP FACE */}
-            <rect x={0} y={0} width={TILE_W} height={TILE_H} fill={topColor} />
-            {/* Cube stud seams - 4x4 sub-grid like the reference platform */}
-            {Array.from({ length: 3 }).map((_, i) => (
-              <g key={i}>
-                <line x1={((i + 1) * TILE_W) / 4} y1={0} x2={((i + 1) * TILE_W) / 4} y2={TILE_H} stroke={seamColor} strokeWidth="1.2" />
-                <line x1={0} y1={((i + 1) * TILE_H) / 4} x2={TILE_W} y2={((i + 1) * TILE_H) / 4} stroke={seamColor} strokeWidth="1.2" />
-              </g>
-            ))}
-            {/* Soft top-light: brighter at the far (top) edge for the camera tilt */}
-            <rect x={0} y={0} width={TILE_W} height={TILE_H} fill="url(#gridTileLight)" opacity={0.18} style={{ mixBlendMode: 'overlay' }} />
-            {/* Tile border */}
-            <rect x={0.5} y={0.5} width={TILE_W - 1} height={TILE_H - 1} fill="none" stroke={seamColor} strokeWidth="1.5" />
-
-            {/* WATCHED-CELL TINT - teaches vision on the first ~25 floors,
-                fades away by floor 50; the V overlay brings it back strong */}
-            {isMonitored && (showVision || teachOpacity > 0.01) && (
-              <rect x={2} y={2} width={TILE_W - 4} height={TILE_H - 4} fill="#e2483d" opacity={showVision ? 0.35 : teachOpacity} rx={4} />
-            )}
-          </g>
-        ) : (
-          /* OPEN TRAPDOOR HOLE */
-          <g>
-            <rect x={0} y={0} width={TILE_W} height={TILE_H} fill={`url(#${holeGradId})`} stroke="#0f172a" strokeWidth="2" />
-            <ellipse cx={TILE_W / 2} cy={TILE_H / 2} rx="20" ry="12" fill="#38bdf8" opacity="0.3" className="animate-ping" />
-            <ellipse cx={TILE_W / 2} cy={TILE_H / 2} rx="10" ry="6" fill="#7dd3fc" opacity="0.5" />
-            {/* Opened trapdoor leaves swung to the sides */}
-            <rect x={0} y={0} width={10} height={TILE_H} fill="#475569" stroke="#0f172a" />
-            <rect x={TILE_W - 10} y={0} width={10} height={TILE_H} fill="#475569" stroke="#0f172a" />
-          </g>
-        )}
-      </svg>
-
-      {/* CHILDREN (PENGUIN / FISH) - feet anchored on the tile top face */}
-      <div
-        className="absolute inset-x-0 top-0 flex items-end justify-center pointer-events-none z-10"
-        style={{ height: TILE_H, paddingBottom: 6 }}
-      >
-        {children}
-      </div>
+      {/* OPEN TRAPDOOR HOLE - only exists while a penguin is falling */}
+      {isOpen && (
+        <svg width={TILE_W} height={TILE_H} viewBox={'0 0 ' + TILE_W + ' ' + TILE_H} className="absolute left-0 top-0">
+          <rect x={0} y={0} width={TILE_W} height={TILE_H} fill="url(#tileHole)" stroke="#0f172a" strokeWidth="2" />
+          <ellipse cx={TILE_W / 2} cy={TILE_H / 2} rx="20" ry="12" fill="#38bdf8" opacity="0.3" />
+          <ellipse cx={TILE_W / 2} cy={TILE_H / 2} rx="10" ry="6" fill="#7dd3fc" opacity="0.5" />
+          <rect x={0} y={0} width={10} height={TILE_H} fill="#475569" stroke="#0f172a" />
+          <rect x={TILE_W - 10} y={0} width={10} height={TILE_H} fill="#475569" stroke="#0f172a" />
+        </svg>
+      )}
     </div>
   );
-};
+});
+TileOverlay.displayName = 'TileOverlay';
 
 export const Grid: React.FC<GridProps> = ({
   gameState,
@@ -145,6 +163,20 @@ export const Grid: React.FC<GridProps> = ({
   // learn how penguins see, then the hint fades out between floors 25-50.
   const floor = gameState.floor;
   const teachOpacity = floor <= 25 ? 0.14 : floor <= 50 ? 0.14 * (1 - (floor - 25) / 25) : 0;
+
+  // Stable across renders so TileOverlay's memo actually holds. Reads the
+  // freshest penguins via the ref pattern rather than re-binding callbacks.
+  const stateRef = React.useRef({ penguins: gameState.penguins, onDrop, onTileClick });
+  stateRef.current = { penguins: gameState.penguins, onDrop, onTileClick };
+  const handleTilePress = useCallback((x: number, y: number) => {
+    const { penguins, onDrop: drop, onTileClick: tileClick } = stateRef.current;
+    const penguin = penguins.find(p => p.x === x && p.y === y);
+    if (penguin) drop(penguin.id);
+    else if (tileClick) tileClick(x, y);
+  }, []);
+
+  const cells: { x: number; y: number }[] = [];
+  for (let y = 0; y < GRID_SIZE; y++) for (let x = 0; x < GRID_SIZE; x++) cells.push({ x, y });
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-visible">
@@ -178,77 +210,73 @@ export const Grid: React.FC<GridProps> = ({
           }}
         />
 
-        {/* Shared far-edge light gradient used by all tiles */}
-        <svg width="0" height="0" className="absolute">
-          <defs>
-            <linearGradient id="gridTileLight" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#000000" />
-            </linearGradient>
-          </defs>
-        </svg>
+        {/* LAYER 1: static checkerboard, painted once */}
+        <StaticBoard />
 
-        {/* 4x4 SQUARE GRID */}
-        {Array.from({ length: GRID_SIZE }).map((_, y) => (
-          Array.from({ length: GRID_SIZE }).map((_, x) => {
-            const penguin = gameState.penguins.find(p => p.x === x && p.y === y);
-            const isTrapdoorOpen = penguin?.isFalling || false;
-            const isMonitored = monitoredCells?.has(`${x},${y}`) || false;
-            const isFishHere = gameState.fishTreat && gameState.fishTreat.active && gameState.fishTreat.x === x && gameState.fishTreat.y === y;
+        {/* LAYER 2: per-tile dynamic overlays */}
+        {cells.map(({ x, y }) => {
+          const penguin = gameState.penguins.find(p => p.x === x && p.y === y);
+          return (
+            <TileOverlay
+              key={x + '-' + y}
+              x={x}
+              y={y}
+              isOpen={penguin?.isFalling || false}
+              isMonitored={monitoredCells?.has(x + ',' + y) || false}
+              showVision={gameState.showVisionCones}
+              teachOpacity={teachOpacity}
+              onTilePress={handleTilePress}
+            />
+          );
+        })}
 
-            return (
-              <SquareTile
-                key={`${x}-${y}`}
-                x={x}
-                y={y}
-                isOpen={isTrapdoorOpen}
-                isMonitored={isMonitored}
-                showVision={gameState.showVisionCones}
-                teachOpacity={teachOpacity}
-                onClick={() => {
-                  if (penguin) {
-                    onDrop(penguin.id);
-                  } else if (onTileClick) {
-                    onTileClick(x, y);
-                  }
-                }}
-              >
-                {/* 8-BIT FISH TREAT ICON */}
-                {isFishHere && (
-                  <motion.div
-                    initial={{ scale: 0, y: -30 }}
-                    animate={{ scale: 1.2, y: -6 }}
-                    className="absolute z-20 pointer-events-none flex flex-col items-center"
-                  >
-                    <svg viewBox="0 0 16 16" className="w-9 h-9 drop-shadow-[0_4px_8px_rgba(56,189,248,0.8)] animate-bounce" style={{ shapeRendering: 'crispEdges' }}>
-                      <rect x="3" y="6" width="10" height="4" fill="#38bdf8" />
-                      <rect x="5" y="4" width="6" height="8" fill="#0284c7" />
-                      <rect x="1" y="5" width="2" height="6" fill="#f59e0b" />
-                      <rect x="6" y="6" width="2" height="2" fill="#ffffff" />
-                      <rect x="7" y="7" width="1" height="1" fill="#000000" />
-                    </svg>
-                  </motion.div>
-                )}
+        {/* LAYER 3: actors - the fish and the penguins, placed by grid coords */}
+        {gameState.fishTreat?.active && (
+          <motion.div
+            initial={{ scale: 0, y: -30 }}
+            animate={{ scale: 1.2, y: -6 }}
+            className="absolute z-20 pointer-events-none flex justify-center"
+            style={{
+              left: getGridPos(gameState.fishTreat.x, gameState.fishTreat.y).left,
+              top: getGridPos(gameState.fishTreat.x, gameState.fishTreat.y).top,
+              width: TILE_W,
+              height: TILE_H,
+            }}
+          >
+            <svg viewBox="0 0 16 16" className="w-9 h-9 animate-bounce" style={{ shapeRendering: 'crispEdges' }}>
+              <rect x="3" y="6" width="10" height="4" fill="#38bdf8" />
+              <rect x="5" y="4" width="6" height="8" fill="#0284c7" />
+              <rect x="1" y="5" width="2" height="6" fill="#f59e0b" />
+              <rect x="6" y="6" width="2" height="2" fill="#ffffff" />
+              <rect x="7" y="7" width="1" height="1" fill="#000000" />
+            </svg>
+          </motion.div>
+        )}
 
-                {penguin && (
-                  <Penguin
-                    penguin={
-                      gameState.fishTreat?.active && !penguin.isFalling && !penguin.isPanic && penguin.type !== 'SLEEPY'
-                        ? { ...penguin, isDistracted: true, distractionDir: getDirectionTowards(penguin, gameState.fishTreat) }
-                        : penguin
-                    }
-                    isHovered={hoveredPenguinId === penguin.id}
-                    onClick={() => onDrop(penguin.id)}
-                    onHoverStart={() => setHoveredPenguinId(penguin.id)}
-                    onHoverEnd={() => setHoveredPenguinId(null)}
-                    isWitness={gameState.witnessIds.includes(penguin.id)}
-                    showVisionCone={gameState.showVisionCones}
-                  />
-                )}
-              </SquareTile>
-            );
-          })
-        ))}
+        {gameState.penguins.map(penguin => {
+          const pos = getGridPos(penguin.x, penguin.y);
+          const shown =
+            gameState.fishTreat?.active && !penguin.isFalling && !penguin.isPanic && penguin.type !== 'SLEEPY'
+              ? { ...penguin, isDistracted: true, distractionDir: getDirectionTowards(penguin, gameState.fishTreat) }
+              : penguin;
+          return (
+            <div
+              key={penguin.id}
+              className="absolute flex items-end justify-center pointer-events-none"
+              style={{ left: pos.left, top: pos.top, width: TILE_W, height: TILE_H, paddingBottom: 6, zIndex: 10 + penguin.y }}
+            >
+              <Penguin
+                penguin={shown}
+                isHovered={hoveredPenguinId === penguin.id}
+                onClick={() => onDrop(penguin.id)}
+                onHoverStart={() => setHoveredPenguinId(penguin.id)}
+                onHoverEnd={() => setHoveredPenguinId(null)}
+                isWitness={gameState.witnessIds.includes(penguin.id)}
+                showVisionCone={gameState.showVisionCones}
+              />
+            </div>
+          );
+        })}
 
         {/* FLOATING SCORE POPUPS */}
         <AnimatePresence>
@@ -261,8 +289,8 @@ export const Grid: React.FC<GridProps> = ({
                 animate={{ opacity: 0, y: pos.top - 90, scale: 1.4 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.85, ease: "easeOut" }}
-                className="absolute font-pixel font-bold text-lg sm:text-xl drop-shadow-[0_3px_6px_#000000] pointer-events-none z-50 tracking-tighter whitespace-nowrap"
-                style={{ color: score.color }}
+                className="absolute font-pixel font-bold text-lg sm:text-xl pointer-events-none z-50 tracking-tighter whitespace-nowrap"
+                style={{ color: score.color, textShadow: '0 3px 6px #000000' }}
               >
                 {score.text}
               </motion.div>

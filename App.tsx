@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
@@ -38,7 +38,12 @@ function App() {
 
   const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
 
-  const monitoredCells = getMonitoredCells(gameState.penguins, gameState.fishTreat);
+  // Memoized: a fresh Set identity every render would defeat the tile
+  // overlays' React.memo and re-render all 16 tiles on every state change.
+  const monitoredCells = useMemo(
+    () => getMonitoredCells(gameState.penguins, gameState.fishTreat),
+    [gameState.penguins, gameState.fishTreat]
+  );
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -572,8 +577,14 @@ function App() {
 
               {/* PAUSE OVERLAY - blocks the board and freezes the run */}
               {gameState.isPaused && (
-                <div className="absolute inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-5" onClick={togglePause}>
-                  <div className="font-pixel font-bold text-3xl text-[#efece2] tracking-widest drop-shadow-[0_4px_0_#12213c]">PAUSED</div>
+                <div
+                  // Solid scrim, no backdrop-blur: the board behind keeps its
+                  // idle animations while paused, and a backdrop filter would
+                  // re-blur it every frame.
+                  className="absolute inset-0 z-40 bg-slate-950/90 flex flex-col items-center justify-center gap-5"
+                  onClick={togglePause}
+                >
+                  <div className="font-pixel font-bold text-3xl text-[#efece2] tracking-widest" style={{ textShadow: '0 4px 0 #12213c' }}>PAUSED</div>
                   <button
                     onClick={(e) => { e.stopPropagation(); togglePause(); }}
                     className="px-8 py-3 bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] font-pixel font-bold rounded-2xl border-b-[6px] border-[#c26a10] active:translate-y-1 active:border-b-2 text-sm uppercase tracking-widest transition-all"

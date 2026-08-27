@@ -48,7 +48,11 @@ const PixelPenguinSprite: React.FC<{
       <img
         src={src}
         alt="Pixel Penguin"
-        className="w-full h-full object-contain filter drop-shadow-[0_6px_10px_rgba(0,0,0,0.7)]"
+        // No CSS filter here: a drop-shadow() on every sprite img creates a
+        // filtered compositing layer per penguin, and 16 of those repainting
+        // together is what flickers on mid-range phones. The ellipse ground
+        // shadow below the sprite carries the grounding instead.
+        className="w-full h-full object-contain"
         style={{
           transform: flip ? 'scaleX(-1)' : undefined,
           imageRendering: 'pixelated'
@@ -73,12 +77,14 @@ export const PenguinIcon: React.FC<{
     <img
       src="/sprites/front.png"
       alt="Pixel Penguin Front View"
-      className="w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)]"
+      // No filter: this icon is animated (bouncing) on the start screen and
+      // header, and an animated drop-shadow layer re-rasterizes every frame.
+      className="w-full h-full object-contain"
     />
   </div>
 );
 
-export const Penguin: React.FC<PenguinProps> = ({
+const PenguinInner: React.FC<PenguinProps> = ({
   penguin,
   isHovered,
   onClick,
@@ -201,11 +207,13 @@ export const Penguin: React.FC<PenguinProps> = ({
             {/* GROUND CONTACT SHADOW */}
             <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-10 h-3 sm:w-12 sm:h-3.5 rounded-full bg-black/45 blur-[3px] pointer-events-none" />
 
-            {/* SPRITE WRAPPER */}
+            {/* SPRITE WRAPPER.
+                Highlight is transform-only: a brightness()/drop-shadow() filter
+                here promotes a new layer on every tap, which mid-range Android
+                WebViews flash while re-rasterizing. Scale reads just as well. */}
             <div className={clsx(
               "transition-transform duration-150 relative",
-              isHovered && !penguin.isPanic ? "scale-115 brightness-125 drop-shadow-[0_0_12px_rgba(242,144,31,0.85)]" : "",
-              penguin.isPanic ? "drop-shadow-[0_0_20px_rgba(226,72,61,1)]" : ""
+              isHovered && !penguin.isPanic ? "scale-115" : ""
             )}>
               <PixelPenguinSprite
                 facingDir={facingDir}
@@ -225,7 +233,10 @@ export const Penguin: React.FC<PenguinProps> = ({
               <motion.div
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="absolute -top-10 z-40 drop-shadow-[0_0_10px_rgba(226,72,61,0.9)]"
+                // no filter here: the marks animate constantly inside this
+                // wrapper, and an animated drop-shadow layer re-rasterizes
+                // every frame - the full-screen flash during the alarm
+                className="absolute -top-10 z-40"
               >
                 <ExclamationMarks />
               </motion.div>
@@ -236,7 +247,7 @@ export const Penguin: React.FC<PenguinProps> = ({
               <motion.div
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1.2, y: -50 }}
-                className="absolute text-[#e2483d] drop-shadow-md z-40"
+                className="absolute text-[#e2483d] z-40"
               >
                 <AlertTriangle size={32} fill="#e2483d" stroke="white" strokeWidth={2} className="animate-pulse" />
               </motion.div>
@@ -248,3 +259,29 @@ export const Penguin: React.FC<PenguinProps> = ({
     </div>
   );
 };
+
+/**
+ * Memoized against everything that affects pixels. Callback props are
+ * intentionally excluded from the comparison - Grid recreates them every
+ * render, and comparing them would defeat the memo entirely.
+ */
+export const Penguin = React.memo(PenguinInner, (a, b) => {
+  const p1 = a.penguin, p2 = b.penguin;
+  return (
+    p1.id === p2.id &&
+    p1.x === p2.x &&
+    p1.y === p2.y &&
+    p1.direction === p2.direction &&
+    p1.type === p2.type &&
+    p1.isFalling === p2.isFalling &&
+    p1.isPanic === p2.isPanic &&
+    p1.isDizzy === p2.isDizzy &&
+    p1.isPushed === p2.isPushed &&
+    p1.isEntering === p2.isEntering &&
+    p1.isDistracted === p2.isDistracted &&
+    p1.distractionDir === p2.distractionDir &&
+    a.isHovered === b.isHovered &&
+    a.isWitness === b.isWitness &&
+    a.showVisionCone === b.showVisionCone
+  );
+});

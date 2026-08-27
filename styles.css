@@ -25,8 +25,6 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
   margin: 0;
 }
 
@@ -39,7 +37,10 @@ body {
   box-sizing: border-box;
 }
 
-svg, img, canvas, div {
+/* Only images and svg need nearest-neighbor scaling. This used to apply to
+   every div (and the body), which pushes the WebView's gradient/background
+   rendering for the whole page onto slower scaling paths. */
+svg, img {
   image-rendering: pixelated;
 }
 

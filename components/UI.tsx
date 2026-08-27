@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
     <div className="flex flex-col gap-2 pointer-events-auto min-w-0">
       <div className="flex items-center gap-2 bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
         <motion.div
-          className="filter drop-shadow-md"
+          className=""
           animate={{ rotate: [0, 5, -5, 0], y: [0, -4, -4, 0] }}
           transition={{ repeat: Infinity, duration: 2 }}
         >
@@ -192,11 +192,15 @@ export const FloorTimer: React.FC<{ elevatorState: string; floor: number }> = ({
         <span className="font-pixel text-[8px] text-[#fbbf3c]">{duration.toFixed(1)}s</span>
       </div>
       <div className="h-2.5 bg-[#12213c] rounded-md border border-[#2d4d80] overflow-hidden">
+        {/* scaleX, not width: width is a layout property, and animating it for
+            the full 3-6s of every boarding/ride relayouts and repaints the HUD
+            layer each frame - the "buttons flickering while rising" bug. */}
         <motion.div
           key={`${elevatorState}-${floor}`}
-          className={`h-full rounded-sm ${isBoarding ? 'bg-[#e2483d]' : 'bg-[#38bdf8]'}`}
-          initial={{ width: isBoarding ? '100%' : '0%' }}
-          animate={{ width: isBoarding ? '0%' : '100%' }}
+          className={`h-full w-full rounded-sm origin-left ${isBoarding ? 'bg-[#e2483d]' : 'bg-[#38bdf8]'}`}
+          style={{ willChange: 'transform' }}
+          initial={{ scaleX: isBoarding ? 1 : 0 }}
+          animate={{ scaleX: isBoarding ? 0 : 1 }}
           transition={{ duration, ease: 'linear' }}
         />
       </div>
@@ -320,7 +324,8 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
             initial={{ scale: 0, rotate: -6 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 1.2, type: 'spring', stiffness: 200 }}
-            className="font-pixel font-bold text-3xl text-[#e2483d] drop-shadow-[0_4px_0_#12213c] uppercase tracking-tight"
+            className="font-pixel font-bold text-3xl text-[#e2483d] uppercase tracking-tight"
+            style={{ textShadow: '0 4px 0 #12213c' }}
           >
             {reason === 'BANKRUPT' ? 'Elevator Full!' : 'Busted!'}
           </motion.h2>

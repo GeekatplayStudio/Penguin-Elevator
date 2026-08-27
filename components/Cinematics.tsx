@@ -23,6 +23,32 @@ const PAL = {
   GOLD: '#fbbf3c',
 };
 
+/**
+ * One-shot vertical rush that stays on the GPU: the repeating pattern lives
+ * on an oversized child moved with a transform. Animating
+ * backgroundPositionY instead (as these scenes originally did) forces the
+ * WebView to repaint the full-screen layer on every frame, which mid-range
+ * Android shows as the whole screen flashing.
+ */
+const RushLayer: React.FC<{
+  distance: number;           // px the pattern travels (content moves up)
+  duration: number;
+  delay?: number;
+  ease?: 'easeIn' | 'easeOut' | 'linear';
+  className?: string;
+  patternStyle: React.CSSProperties;
+}> = ({ distance, duration, delay = 0, ease = 'easeIn', className, patternStyle }) => (
+  <div className={'absolute inset-0 overflow-hidden pointer-events-none ' + (className ?? '')}>
+    <motion.div
+      className="absolute left-0 right-0"
+      style={{ top: 0, height: 'calc(100% + ' + distance + 'px)', willChange: 'transform', ...patternStyle }}
+      initial={{ y: 0 }}
+      animate={{ y: -distance }}
+      transition={{ duration, delay, ease }}
+    />
+  </div>
+);
+
 /** Anchors an overlay to the sprite's actual drawn area inside object-contain */
 const SpriteAnchor: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="absolute inset-0 flex justify-center pointer-events-none">
@@ -104,23 +130,29 @@ export const MargaritaOverlay: React.FC<{ side?: 'left' | 'right' }> = ({ side =
   </SpriteAnchor>
 );
 
-/** Three bright-red voxel exclamation marks - the witness alarm */
+/** Three bright-red voxel exclamation marks - the witness alarm.
+    ONE animated container instead of three independently-animated SVGs:
+    every animated element is its own compositing layer on WebView, and the
+    alarm fires at the moment the phone is already busiest. */
 export const ExclamationMarks: React.FC = () => (
-  <div className="flex gap-1 items-end">
+  <motion.div
+    className="flex gap-1 items-end"
+    style={{ willChange: 'transform' }}
+    animate={{ y: [0, -5, 0], scale: [1, 1.2, 1] }}
+    transition={{ repeat: Infinity, duration: 0.32 }}
+  >
     {[0, 1, 2].map(i => (
-      <motion.svg
+      <svg
         key={i}
         viewBox="0 0 6 14"
         className="w-3 h-7 sm:w-3.5 sm:h-8"
         style={{ shapeRendering: 'crispEdges' }}
-        animate={{ y: [0, -5, 0], scale: [1, 1.25, 1] }}
-        transition={{ repeat: Infinity, duration: 0.32, delay: i * 0.08 }}
       >
         <rect x={1} y={0} width={4} height={8} fill={PAL.RED} stroke="#fff" strokeWidth={0.6} />
         <rect x={1} y={10} width={4} height={4} fill={PAL.RED} stroke="#fff" strokeWidth={0.6} />
-      </motion.svg>
+      </svg>
     ))}
-  </div>
+  </motion.div>
 );
 
 /* ============================================================
@@ -166,7 +198,7 @@ const PartyPenguin: React.FC<{
       <img
         src={sprite}
         alt=""
-        className="w-full h-full object-contain drop-shadow-[0_6px_8px_rgba(0,0,0,0.5)]"
+        className="w-full h-full object-contain"
         style={{ transform: flip ? 'scaleX(-1)' : undefined }}
       />
       {accessory}
@@ -382,21 +414,20 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
         <motion.div className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
           <div className="absolute inset-0 bg-slate-950" />
           {/* passing floor slabs */}
-          <motion.div
-            className="absolute inset-0"
-            animate={{ backgroundPositionY: ['0px', '-2600px'] }}
-            transition={{ duration: 1.6, ease: 'easeIn' }}
-            style={{
-              backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent 90px, #24406b 90px, #24406b 104px, #16294a 104px, #16294a 110px)`,
+          <RushLayer
+            distance={2600}
+            duration={1.6}
+            patternStyle={{
+              backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 90px, #24406b 90px, #24406b 104px, #16294a 104px, #16294a 110px)',
             }}
           />
           {/* passing lit windows */}
-          <motion.div
-            className="absolute inset-0 opacity-70"
-            animate={{ backgroundPositionY: ['0px', '-2600px'] }}
-            transition={{ duration: 1.6, ease: 'easeIn' }}
-            style={{
-              backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent 30px, rgba(251,191,60,0.25) 30px, rgba(251,191,60,0.25) 46px, transparent 46px, transparent 110px)`,
+          <RushLayer
+            distance={2600}
+            duration={1.6}
+            className="opacity-70"
+            patternStyle={{
+              backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 30px, rgba(251,191,60,0.25) 30px, rgba(251,191,60,0.25) 46px, transparent 46px, transparent 110px)',
               backgroundSize: '38% 110px',
               backgroundRepeat: 'repeat',
               backgroundPositionX: '31%',
@@ -409,37 +440,35 @@ export const IntroSequence: React.FC<{ onComplete: () => void }> = ({ onComplete
               <div className="absolute top-0 bottom-0" style={{ right: left, width: 6, background: '#1d3358' }} />
             </React.Fragment>
           ))}
-          <motion.div
-            className="absolute top-0 bottom-0"
-            style={{
-              left: '8.5%', width: 3,
-              backgroundImage: 'repeating-linear-gradient(to bottom, #38bdf8 0px, #38bdf8 22px, transparent 22px, transparent 70px)',
-            }}
-            animate={{ backgroundPositionY: ['0px', '-2800px'] }}
-            transition={{ duration: 1.6, ease: 'easeIn' }}
-          />
-          <motion.div
-            className="absolute top-0 bottom-0"
-            style={{
-              right: '8.5%', width: 3,
-              backgroundImage: 'repeating-linear-gradient(to bottom, #38bdf8 0px, #38bdf8 22px, transparent 22px, transparent 70px)',
-            }}
-            animate={{ backgroundPositionY: ['0px', '-2800px'] }}
-            transition={{ duration: 1.6, ease: 'easeIn' }}
-          />
+          {[0, 1].map((i) => (
+            <div key={i} className="absolute top-0 bottom-0 overflow-hidden" style={i === 0 ? { left: '8.5%', width: 3 } : { right: '8.5%', width: 3 }}>
+              <motion.div
+                className="absolute left-0 right-0"
+                style={{
+                  top: 0, height: 'calc(100% + 2800px)', willChange: 'transform',
+                  backgroundImage: 'repeating-linear-gradient(to bottom, #38bdf8 0px, #38bdf8 22px, transparent 22px, transparent 70px)',
+                }}
+                initial={{ y: 0 }}
+                animate={{ y: -2800 }}
+                transition={{ duration: 1.6, ease: 'easeIn' }}
+              />
+            </div>
+          ))}
 
           {/* the elevator's steel cables running up the middle of the shaft */}
           {['38%', '61%'].map((left, i) => (
-            <motion.div
-              key={i}
-              className="absolute top-0 bottom-0"
-              style={{
-                left, width: 4,
-                backgroundImage: 'repeating-linear-gradient(to bottom, #475569 0px, #475569 34px, #64748b 34px, #64748b 40px)',
-              }}
-              animate={{ backgroundPositionY: ['0px', '-3200px'] }}
-              transition={{ duration: 1.6, ease: 'easeIn', delay: i * 0.04 }}
-            />
+            <div key={i} className="absolute top-0 bottom-0 overflow-hidden" style={{ left, width: 4 }}>
+              <motion.div
+                className="absolute left-0 right-0"
+                style={{
+                  top: 0, height: 'calc(100% + 3200px)', willChange: 'transform',
+                  backgroundImage: 'repeating-linear-gradient(to bottom, #475569 0px, #475569 34px, #64748b 34px, #64748b 40px)',
+                }}
+                initial={{ y: 0 }}
+                animate={{ y: -3200 }}
+                transition={{ duration: 1.6, ease: 'easeIn', delay: i * 0.04 }}
+              />
+            </div>
           ))}
 
           {/* short vertical speed streaks scattered across the frame */}
@@ -595,11 +624,11 @@ const BouncePenguin: React.FC<{ index: number }> = ({ index }) => {
 export const PileReveal: React.FC = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
     {/* shaft walls streaking upward - the long ride down in one second */}
-    <motion.div
-      className="absolute inset-0"
-      animate={{ backgroundPositionY: ['0px', '-2200px'] }}
-      transition={{ duration: 1.3, ease: 'easeOut' }}
-      style={{
+    <RushLayer
+      distance={2200}
+      duration={1.3}
+      ease="easeOut"
+      patternStyle={{
         backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 100px, #1d3358 100px, #1d3358 112px)',
       }}
     />
