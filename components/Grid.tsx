@@ -122,16 +122,30 @@ const TileOverlay = React.memo<TileOverlayProps>(({ x, y, isOpen, isMonitored, s
       style={{ left: pos.left, top: pos.top, width: TILE_W, height: TILE_H, zIndex: 5 }}
       onClick={(e) => { e.stopPropagation(); onTilePress(x, y); }}
     >
-      {/* WATCHED-CELL TINT - a plain div, no SVG repaint involved */}
+      {/* WATCHED-CELL MARKING - a fill plus a border ring. The ring matters:
+          on an occupied tile the penguin sprite covers most of the fill, and
+          the occupied tile is exactly the one the player is judging before a
+          drop. The ring stays visible around the sprite's feet. Plain divs -
+          no SVG repaint involved. */}
       {showTint && (
-        <div
-          className="absolute rounded"
-          style={{
-            left: 2, top: 2, right: 2, bottom: 2,
-            background: '#e2483d',
-            opacity: showVision ? 0.35 : teachOpacity,
-          }}
-        />
+        <>
+          <div
+            className="absolute rounded"
+            style={{
+              left: 2, top: 2, right: 2, bottom: 2,
+              background: '#e2483d',
+              opacity: showVision ? 0.35 : teachOpacity,
+            }}
+          />
+          <div
+            className="absolute rounded"
+            style={{
+              left: 2, top: 2, right: 2, bottom: 2,
+              border: '2px solid #e2483d',
+              opacity: showVision ? 0.9 : Math.min(0.7, teachOpacity * 3.5),
+            }}
+          />
+        </>
       )}
 
       {/* OPEN TRAPDOOR HOLE - only exists while a penguin is falling */}
@@ -159,10 +173,11 @@ export const Grid: React.FC<GridProps> = ({
   const [hoveredPenguinId, setHoveredPenguinId] = useState<string | null>(null);
   const isMoving = gameState.elevatorState === 'MOVING';
 
-  // Training wheels: watched tiles glow softly on early floors so players
-  // learn how penguins see, then the hint fades out between floors 25-50.
+  // Training wheels: watched tiles are clearly marked at FULL strength for
+  // the entire first 50 floors (the whole learning arc of the difficulty
+  // curve), then fade out between 51 and 70. The V overlay always works.
   const floor = gameState.floor;
-  const teachOpacity = floor <= 25 ? 0.14 : floor <= 50 ? 0.14 * (1 - (floor - 25) / 25) : 0;
+  const teachOpacity = floor <= 50 ? 0.18 : floor <= 70 ? 0.18 * (1 - (floor - 50) / 20) : 0;
 
   // Stable across renders so TileOverlay's memo actually holds. Reads the
   // freshest penguins via the ref pattern rather than re-binding callbacks.
