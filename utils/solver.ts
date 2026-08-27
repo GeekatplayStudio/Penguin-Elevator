@@ -1,6 +1,6 @@
 import { Direction, Penguin, GridPos } from '../types';
 import { GRID_SIZE } from '../constants';
-import { getVisionRays, isObserving, getRotationChance } from './gameLogic';
+import { getVisionRays, isObserving, getRotationChance, getTargetSafeDrops } from './gameLogic';
 
 /**
  * Exact board solver - the heart of the "every board is a solvable puzzle"
@@ -114,7 +114,7 @@ const shuffled = <T,>(arr: T[]): T[] => {
  * Returns null when NO placement keeps the board clearable (never observed
  * across 2,000 simulated floors, but handled: boarding is deferred a floor).
  */
-export const chooseSpawnPlacement = (penguins: Penguin[]): { pos: GridPos; direction: Direction } | null => {
+export const chooseSpawnPlacement = (penguins: Penguin[], floor: number = 1): { pos: GridPos; direction: Direction } | null => {
   const standing = penguins.filter(p => !p.isFalling);
   const occupied = new Set(standing.map(p => p.x + ',' + p.y));
   const empties: GridPos[] = [];
@@ -124,18 +124,29 @@ export const chooseSpawnPlacement = (penguins: Penguin[]): { pos: GridPos; direc
     }
   }
 
+  // Two-tier acceptance (item 7): among placements that keep the board
+  // clearable, PREFER one that also keeps at least getTargetSafeDrops(floor)
+  // penguins immediately droppable - the meditative-generosity dial. If no
+  // candidate meets the target, fall back to the first merely-clearable one,
+  // so the hard invariant is never traded away for comfort.
+  const target = Math.min(getTargetSafeDrops(floor), standing.length); // early boards are small
+  let fallback: { pos: GridPos; direction: Direction } | null = null;
+
   for (const pos of shuffled(empties)) {
     for (const direction of shuffled(DIRS)) {
       const candidate: Penguin = {
         id: '__candidate__', x: pos.x, y: pos.y, direction,
         type: 'STANDARD', appearanceVariant: 0,
       };
-      if (isClearable([...standing, candidate])) {
+      const analysis = analyzeBoard([...standing, candidate]);
+      if (!analysis.clearable) continue;
+      if (analysis.safeDropIds.length >= target) {
         return { pos, direction };
       }
+      if (!fallback) fallback = { pos, direction };
     }
   }
-  return null;
+  return fallback;
 };
 
 /**
@@ -150,19 +161,27 @@ export const smartRotatePenguins = (penguins: Penguin[], floor: number): Penguin
   let anyTurned = false;
 
   const CYCLE: Direction[] = ['DOWN', 'RIGHT', 'UP', 'LEFT'];
+  const target = Math.min(getTargetSafeDrops(floor), Math.max(1, penguins.length - 1));
   const tryTurn = (idx: number): boolean => {
     const p = current[idx];
     if (p.isFalling) return false;
     const ci = CYCLE.indexOf(p.direction);
-    // both 90-degree turns, in random order - never a 180 flip
+    // both 90-degree turns, in random order - never a 180 flip.
+    // Prefer a turn that keeps the board at the floor's generosity target
+    // (item 7); accept a merely-clearable turn only if neither does.
     const options = shuffled([CYCLE[(ci + 1) % 4], CYCLE[(ci + 3) % 4]]);
+    let fallback: Penguin[] | null = null;
     for (const nd of options) {
       const cand = current.map((q, i) => (i === idx ? { ...q, direction: nd } : q));
-      if (isClearable(cand)) {
+      const analysis = analyzeBoard(cand);
+      if (!analysis.clearable) continue;
+      if (analysis.safeDropIds.length >= target) {
         current = cand;
         return true;
       }
+      if (!fallback) fallback = cand;
     }
+    if (fallback) { current = fallback; return true; }
     return false;
   };
 

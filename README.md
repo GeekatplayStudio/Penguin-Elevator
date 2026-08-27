@@ -33,10 +33,7 @@ Guide crowded passengers through trapdoors in an ascending 3D voxel elevator whi
 * **Line of Sight Blocking**: A penguin standing in the way blocks the view behind it on *every* ray, diagonals included — so you can drop right in front of a watcher if a bystander is screening you.
 * **Every Board Is Solvable**: An exact solver runs on every boarding and rotation — placements and turns are only accepted if the whole floor can still be cleared. Even a completely full elevator always has an escape order (verified across thousands of simulated floors). Full is no longer instant game over: you get a short **MAKE ROOM** countdown to dig yourself out.
 * **Telegraphed Turns**: A penguin about to rotate shows a wind-up arrow first — no silent mid-ride spins invalidating a drop you already committed to.
-* **Learn-As-You-Play Difficulty**:
-  * **Levels 1–10**: Very relaxed — 6-second boarding, 6.5-second floor travel, penguins start in the corners facing the walls, and newcomers mostly face the nearest wall.
-  * **Every 10 Levels**: Pacing tightens and facing gets more random, never dropping below 2.8s boarding / 3.2s travel.
-  * **Every Level**: At least one penguin always turns, so the board never stalls.
+* **A Meditative Difficulty Curve**: the solver is the difficulty dial. The generator keeps at least **4 simultaneously-safe drops** on the board through floor 20, easing to 3 by floor 50, 2 by floor 90, and never below 1 — so the game slides from "almost anything works" to "read the room" without a single sharp jump. Pacing follows suit: rides and boarding shorten by only 0.15s per 10 floors and never drop below a calm 4.5s / 4s, rotation stays rare, and rest floors give regular breathers. You are always meant to succeed.
 * **Built-In Visual Tutorial**: A rotating illustrated how-to-play on the start screen explains dropping, vision, blocking, and fish — with **Play available at any moment**.
 * **Vision Training Wheels**: Watched tiles glow softly through floor 25 and fade out by floor 50, teaching the vision cone by showing it.
 * **Fish Treat Inventory**: Lure penguins into looking away with a fish treat. You start with one and earn another every 10 floors, so each placement is a real decision rather than a cooldown timer.

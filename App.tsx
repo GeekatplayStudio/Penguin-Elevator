@@ -261,7 +261,7 @@ function App() {
           // SMART BOARDING: the newcomer's cell and facing are chosen so the
           // whole board stays fully clearable - placement is literally based
           // on the existing positions and facings of everyone else.
-          const placement = chooseSpawnPlacement(nextPenguins);
+          const placement = chooseSpawnPlacement(nextPenguins, prev.floor);
           if (placement) {
               // The newcomer shoves its orthogonal neighbors around; a shove
               // may spin them, but only into a facing the solver approves -

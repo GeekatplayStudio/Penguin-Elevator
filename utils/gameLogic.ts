@@ -218,10 +218,11 @@ export const getDifficultyLevel = (floor: number): number => {
 
 export const getRotationChance = (floor: number, pType: PenguinTypeVariant): number => {
   const tier = getFloorTier(floor);
-  // Calm start, slow burn: floors 1-50 climb from 15% to ~37%, and the
-  // ceiling only arrives deep in the run
-  let baseChance = 0.15 + (tier * 0.055);
-  baseChance = Math.min(0.60, baseChance);
+  // Meditative burn: 12% on the first floors, +4% per 10 floors, capped at
+  // half. Even floor 100 never becomes a scramble - the challenge comes from
+  // the solver's difficulty targets, not from chaos.
+  let baseChance = 0.12 + (tier * 0.04);
+  baseChance = Math.min(0.50, baseChance);
 
   if (pType === 'SLEEPY') return baseChance * 0.25;
   if (pType === 'JITTERY') return Math.min(0.80, baseChance * 1.5);
@@ -232,15 +233,15 @@ export const getRotationChance = (floor: number, pType: PenguinTypeVariant): num
 export const getMoveTime = (floor: number): number => {
   const tier = getFloorTier(floor);
   const baseTime = 6500; // Very relaxed ride between floors 1-10
-  const reduced = baseTime - (tier * 250); // gentle 0.25s per 10 floors
-  return Math.max(3500, reduced); // Never faster than 3.5s - quick but playable
+  const reduced = baseTime - (tier * 150); // barely-perceptible 0.15s per 10 floors
+  return Math.max(4500, reduced); // floor 140+ still gives a calm 4.5s ride
 };
 
 export const getBoardingTime = (floor: number): number => {
   const tier = getFloorTier(floor);
   const baseTime = 6000; // Long open-door pause on floors 1-10 to plan & tap
-  const reduced = baseTime - (tier * 250);
-  return Math.max(3000, reduced); // Never faster than 3.0s
+  const reduced = baseTime - (tier * 150);
+  return Math.max(4000, reduced); // never less than 4s to think at the doors
 };
 
 /**
@@ -250,8 +251,29 @@ export const getBoardingTime = (floor: number): number => {
  */
 export const shouldBoardThisFloor = (floor: number, penguinCount: number): boolean => {
   if (penguinCount === 0) return true;        // never leave the floor empty
-  if (floor <= 12 && floor % 2 === 0) return false;
+  if (floor <= 16 && floor % 2 === 0) return false; // rest floors through 16
+  if (floor <= 40 && floor % 5 === 0) return false; // an occasional breather after
   return true;
+};
+
+/**
+ * Item 7: the solver-driven difficulty dial, tuned for a meditative climb.
+ * This is the MINIMUM number of simultaneously-safe drops the generator
+ * tries to keep on the board after every boarding and rotation. It declines
+ * about as slowly as a difficulty curve can: a player gets fifty gentle
+ * floors before the puzzle asks for real reading, and the floor of 1 plus
+ * the clearability invariant means success is always reachable.
+ *
+ *   floors  1-20   keep >= 4 safe drops  (almost anything you tap works)
+ *   floors 21-50   keep >= 3
+ *   floors 51-90   keep >= 2
+ *   floors 91+     keep >= 1              (pure puzzle, still always solvable)
+ */
+export const getTargetSafeDrops = (floor: number): number => {
+  if (floor <= 20) return 4;
+  if (floor <= 50) return 3;
+  if (floor <= 90) return 2;
+  return 1;
 };
 
 /**
