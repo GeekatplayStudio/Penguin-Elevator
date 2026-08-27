@@ -213,13 +213,15 @@ interface MobileControlsProps {
   isFishActive: boolean;
   onUseFish: () => void;
   elevatorState: string;
+  overloadCountdown: number | null;
 }
 
 const MobileControlsInner: React.FC<MobileControlsProps> = ({
   fishCount,
   isFishActive,
   onUseFish,
-  elevatorState
+  elevatorState,
+  overloadCountdown
 }) => (
   <div className="absolute bottom-3 left-0 right-0 px-3 flex flex-col items-center gap-3 z-30 pointer-events-none">
     {/* STATUS BADGE - lives in a fixed-height slot that is ALWAYS rendered.
@@ -232,7 +234,16 @@ const MobileControlsInner: React.FC<MobileControlsProps> = ({
         element makes Android's WebView re-rasterize the glyph layer every
         frame, which is the flicker itself. */}
     <div className="h-[30px] flex items-center justify-center">
-      {(elevatorState === 'BOARDING' || elevatorState === 'MOVING') && (
+      {overloadCountdown !== null ? (
+        <motion.div
+          className="font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 shadow-lg rounded-xl pointer-events-auto tracking-wide whitespace-nowrap bg-[#e2483d] text-white border-[#7f1d1d]"
+          style={{ willChange: 'transform' }}
+          animate={{ y: [0, -3, 0] }}
+          transition={{ repeat: Infinity, duration: 0.35 }}
+        >
+          FULL! MAKE ROOM - {overloadCountdown} FLOOR{overloadCountdown === 1 ? '' : 'S'} LEFT
+        </motion.div>
+      ) : (elevatorState === 'BOARDING' || elevatorState === 'MOVING') && (
         <motion.div
           key={elevatorState}
           className={`font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 shadow-lg rounded-xl pointer-events-auto tracking-wide whitespace-nowrap ${
@@ -371,7 +382,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, floor, hi
              {reason === 'BANKRUPT' ? 'ELEVATOR FULL!' : 'BUSTED!'}
           </h2>
           <p className="text-slate-400 mb-3 text-[10px] font-pixel leading-relaxed">
-            {reason === 'BANKRUPT' ? 'No room left - the floor filled up completely!' : 'A penguin caught you dropping a passenger!'}
+            {reason === 'BANKRUPT' ? 'The elevator stayed overloaded too long!' : 'A penguin caught you dropping a passenger!'}
           </p>
 
           {/* NEW RECORD banner, or how close this run came to the record */}
@@ -480,20 +491,19 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
   },
   {
     title: 'PENGUIN VISION',
-    caption: <>A penguin sees <strong className="text-[#e2483d]">3 tiles ahead & diagonally forward</strong>, <strong className="text-[#f2901f]">2 to each side</strong> - and <strong className="text-[#4ade80]">nothing behind</strong>. Drop from behind!</>,
+    caption: <>A penguin sees only what's <strong className="text-[#e2483d]">in FRONT of it</strong> - 3 tiles ahead, 2 diagonally forward. <strong className="text-[#4ade80]">Sides and behind are blind.</strong> Sneak around!</>,
     diagram: (
       <svg viewBox={`-6 -18 ${MT * 5 + 12} ${MT * 5 + 24}`} className="w-full h-full">
         {Array.from({ length: 5 }).map((_, y) => Array.from({ length: 5 }).map((_, x) => {
           let tint: 'danger' | 'side' | 'safe' | undefined;
-          if (x === 2 && y > 1) tint = 'danger';                    // 3 straight ahead (facing down)
-          else if (y - 1 === Math.abs(x - 2) && y > 1) tint = 'danger'; // forward diagonals
-          else if (y === 1 && x !== 2) tint = 'side';               // 2 each side
-          else if (y === 0) tint = 'safe';                          // behind + back diagonals: blind
+          if (x === 2 && y > 1) tint = 'danger';                            // 3 straight ahead (facing down)
+          else if (y - 1 === Math.abs(x - 2) && y > 1 && y <= 3) tint = 'danger'; // forward diagonals, 2 steps
+          else if (y <= 1) tint = 'safe';                                   // sides, behind, back diagonals: blind
           return <MiniTile key={`${x}-${y}`} x={x} y={y} tint={tint} />;
         }))}
         <MiniPenguin x={2} y={1} sprite="front" />
-        {[1, 2, 3].map(x => (
-          <text key={x} x={x * MT + MT / 2} y={0.5 * MT + 4} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#166534">&#10003;</text>
+        {[0, 1, 3, 4].map(x => (
+          <text key={x} x={x * MT + MT / 2} y={1.5 * MT + 4} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#166534">&#10003;</text>
         ))}
       </svg>
     ),
@@ -682,5 +692,6 @@ export const Header = React.memo(HeaderInner, (a, b) =>
 export const MobileControls = React.memo(MobileControlsInner, (a, b) =>
   a.fishCount === b.fishCount &&
   a.isFishActive === b.isFishActive &&
-  a.elevatorState === b.elevatorState
+  a.elevatorState === b.elevatorState &&
+  a.overloadCountdown === b.overloadCountdown
 );

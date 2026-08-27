@@ -8,6 +8,15 @@ export const MAX_CAPACITY = GRID_SIZE * GRID_SIZE;
 
 export const SCORE_PER_FLOOR = 1;
 
+// When the elevator is completely full, boarding is deferred and the player
+// gets this many floors to make room before it's game over. With the
+// solver-backed generator a full board is always still clearable, so the
+// player is only ever racing their own pace - never an unsolvable deal.
+export const OVERLOAD_GRACE_FLOORS = 3;
+
+// How long the turn-telegraph arrow shows before a penguin's facing flips
+export const ROTATION_TELEGRAPH_MS = 700;
+
 // Fixed timings in milliseconds. The boarding and travel durations are NOT
 // here - they scale with the floor, and live in getBoardingTime/getMoveTime
 // in utils/gameLogic.ts so the HUD countdown and the engine can't disagree.

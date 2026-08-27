@@ -21,15 +21,18 @@ const OPPOSITE_DIRECTION: Record<Direction, Direction> = {
 const ALL_DIRECTIONS: Direction[] = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 /**
- * How far a penguin sees along each ray, by where that ray sits relative to
- * its facing: a long clear look straight ahead and along both forward
- * diagonals, a short glance to each side, and nothing at all behind it
- * (back, back-left, and back-right are all blind).
+ * TRUE FORWARD CONE: a penguin sees only what is in front of it - 3 tiles
+ * straight ahead and 2 along each forward diagonal. Sides and everything
+ * behind are blind. (The old spec also watched the sides at range 2 and the
+ * diagonals at range 3; an exact-solver study showed that cone is too large
+ * for a 4x4 board - 0% of boards at any fill level were fully clearable and
+ * most mid-game boards had zero legal drops. The forward cone makes every
+ * board solvable when paired with the generator in utils/solver.ts, and it
+ * matches what the sprite's face is actually pointing at.)
  */
 export const VISION_RANGE = {
   FORWARD: 3,
-  FORWARD_DIAGONAL: 3,
-  SIDE: 2,
+  FORWARD_DIAGONAL: 2,
   BACK: 0,
 } as const;
 
@@ -43,21 +46,28 @@ export interface VisionRay {
 }
 
 /**
- * The 5 rays a penguin watches given its facing: forward (3), forward-left and
- * forward-right diagonals (3), left and right sides (2). Behind - including
- * both back diagonals - it sees nothing.
+ * The 3 rays a penguin watches given its facing: forward (3) and both
+ * forward diagonals (2). Sides, back, and back diagonals see nothing.
  */
 export const getVisionRays = (facingDir: Direction): VisionRay[] => {
   const f = getVector(facingDir);              // forward unit vector
-  const r = { x: -f.y, y: f.x };               // perpendicular (side) unit vector
+  const r = { x: -f.y, y: f.x };               // perpendicular unit vector
   return [
     { dx: f.x, dy: f.y, range: VISION_RANGE.FORWARD },
     { dx: f.x + r.x, dy: f.y + r.y, range: VISION_RANGE.FORWARD_DIAGONAL },
     { dx: f.x - r.x, dy: f.y - r.y, range: VISION_RANGE.FORWARD_DIAGONAL },
-    { dx: r.x, dy: r.y, range: VISION_RANGE.SIDE },
-    { dx: -r.x, dy: -r.y, range: VISION_RANGE.SIDE },
   ];
 };
+
+/**
+ * Item 1 of the logic redesign: ONE predicate decides who is currently
+ * observing. A penguin that is falling, mid-drop (dizzy), panicking, or
+ * asleep sees nothing. checkDropSafety AND the red-tile overlay both use
+ * this, so what the player sees is exactly what the rules enforce - the
+ * old code let a dizzy (already-dropped!) penguin witness a second drop.
+ */
+export const isObserving = (p: Penguin): boolean =>
+  !p.isFalling && !p.isDizzy && !p.isPanic && p.type !== 'SLEEPY';
 
 /**
  * Calculates direction towards a target coordinate (e.g. fish treat)
@@ -75,8 +85,8 @@ export const getDirectionTowards = (from: GridPos, to: GridPos): Direction => {
 };
 
 /**
- * The rays an observer is actively watching right now: its normal forward and
- * side rays, or - while a fish treat is out - a single stare locked onto the
+ * The rays an observer is actively watching right now: its normal forward
+ * cone, or - while a fish treat is out - a single stare locked onto the
  * fish, since its full attention is on the snack.
  */
 const getActiveVisionRays = (observer: Penguin, fishTreat?: FishTreat | null): VisionRay[] => {
@@ -113,16 +123,13 @@ const rayHitsTarget = (
 };
 
 /**
- * Checks if 'target' is visible to 'observer'. A penguin sees 3 tiles straight
- * ahead, 3 along each forward diagonal, 2 to either side - and nothing behind
- * it. Each ray is blocked by the first standing penguin it hits.
+ * Checks if 'target' is visible to 'observer'. A penguin sees 3 tiles
+ * straight ahead and 2 along each forward diagonal - sides and back are
+ * blind. Each ray is blocked by the first standing penguin it hits.
  */
 export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Penguin[], fishTreat?: FishTreat | null): boolean => {
   if (observer.id === target.id) return false;
-  if (observer.isFalling || target.isFalling) return false;
-
-  // SLEEPY penguins do not observe anything while in elevator
-  if (observer.type === 'SLEEPY') return false;
+  if (!isObserving(observer) || target.isFalling) return false;
 
   return getActiveVisionRays(observer, fishTreat).some(ray =>
     rayHitsTarget(observer, ray, target.x, target.y, allPenguins)
@@ -130,15 +137,15 @@ export const isVisible = (observer: Penguin, target: Penguin, allPenguins: Pengu
 };
 
 /**
- * Returns all cells currently being watched: 3 tiles ahead of each penguin,
- * 3 along each forward diagonal, and 2 to either side - stopping wherever
- * the line of sight is blocked by another standing penguin.
+ * Returns all cells currently being watched: 3 tiles ahead of each penguin
+ * and 2 along each forward diagonal - stopping wherever the line of sight
+ * is blocked by another standing penguin.
  */
 export const getMonitoredCells = (penguins: Penguin[], fishTreat?: FishTreat | null): Set<string> => {
     const monitored = new Set<string>();
 
     penguins.forEach(observer => {
-        if (observer.isFalling || observer.isPanic || observer.type === 'SLEEPY') return;
+        if (!isObserving(observer)) return;
 
         getActiveVisionRays(observer, fishTreat).forEach(ray => {
             let cx = observer.x + ray.dx;

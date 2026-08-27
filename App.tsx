@@ -5,8 +5,9 @@ import { App as CapApp } from '@capacitor/app';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Preferences } from '@capacitor/preferences';
 import { GameState, Penguin, FloatingScore, ElevatorState } from './types';
-import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR } from './constants';
-import { getRandomDirection, checkDropSafety, rotateAllPenguins, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime, getSpawnDirection, getWallFacingDirection, shouldBoardThisFloor } from './utils/gameLogic';
+import { GRID_SIZE, TIMING, MAX_CAPACITY, SCORE_PER_FLOOR, OVERLOAD_GRACE_FLOORS, ROTATION_TELEGRAPH_MS } from './constants';
+import { checkDropSafety, findEmptyCell, getMonitoredCells, getRandomPenguinType, getMoveTime, getBoardingTime, getWallFacingDirection, shouldBoardThisFloor } from './utils/gameLogic';
+import { chooseSpawnPlacement, smartRotatePenguins, isClearable } from './utils/solver';
 import { audioManager } from './utils/audio'; 
 import { Grid } from './components/Grid';
 import { ElevatorShaft } from './components/ElevatorShaft';
@@ -30,6 +31,7 @@ function App() {
     combo: 0,
     fishTreat: null,
     fishCount: 1,
+    overloadCountdown: null,
     showVisionCones: false,
     isMuted: false,
     isPaused: false,
@@ -47,6 +49,7 @@ function App() {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rotationPlanRef = useRef<Penguin[] | null>(null);
 
   // Every timer that drives the elevator cycle is tracked here so PAUSE can
   // freeze the whole machine (rotation, arrival, door-close) in one sweep.
@@ -201,6 +204,7 @@ function App() {
       combo: 0,
       fishTreat: null,
       fishCount: 1,
+      overloadCountdown: null,
       isPaused: false
     }));
 
@@ -224,18 +228,25 @@ function App() {
       if (prev.phase !== 'PLAYING') return prev;
 
       if (prev.penguins.length >= MAX_CAPACITY) {
-         // The floor is completely full - no room for anyone else. Instant game over.
-         gameOver = true;
-         audioManager.stopMusic();
+         // FULL ELEVATOR: no longer an instant loss. The solver-backed
+         // generator guarantees even a full board is still clearable, so the
+         // player gets a short, honest countdown to dig themselves out.
+         const remaining = (prev.overloadCountdown ?? OVERLOAD_GRACE_FLOORS + 1) - 1;
+         if (remaining <= 0) {
+           gameOver = true;
+           audioManager.stopMusic();
+           audioManager.playPanic();
+           const { newHigh, newBestFloor } = saveRecords(prev.score, prev.floor, prev.highScore, prev.bestFloor);
+           return {
+               ...prev,
+               phase: 'GAME_OVER',
+               gameOverReason: 'BANKRUPT',
+               highScore: newHigh,
+               bestFloor: newBestFloor
+           };
+         }
          audioManager.playPanic();
-         const { newHigh, newBestFloor } = saveRecords(prev.score, prev.floor, prev.highScore, prev.bestFloor);
-         return {
-             ...prev,
-             phase: 'GAME_OVER',
-             gameOverReason: 'BANKRUPT',
-             highScore: newHigh,
-             bestFloor: newBestFloor
-         };
+         return { ...prev, overloadCountdown: remaining };
       }
 
       // Early floors get "rest stops" where nobody boards - a gentle ramp-up
@@ -244,36 +255,44 @@ function App() {
         : shouldBoardThisFloor(prev.floor, prev.penguins.length) ? 1 : 0;
       let nextPenguins: Penguin[] = prev.penguins.map(p => ({ ...p, isEntering: false, isPushed: false }));
       let added = false;
-      const pushedIds = new Set<string>();
 
       for (let i = 0; i < numToAdd; i++) {
           if (nextPenguins.length >= MAX_CAPACITY) break;
-          const emptyPos = findEmptyCell(nextPenguins);
-          if (emptyPos) {
-              // The newcomer shoves its orthogonal neighbors around, spinning them to face a new random side
+          // SMART BOARDING: the newcomer's cell and facing are chosen so the
+          // whole board stays fully clearable - placement is literally based
+          // on the existing positions and facings of everyone else.
+          const placement = chooseSpawnPlacement(nextPenguins);
+          if (placement) {
+              // The newcomer shoves its orthogonal neighbors around; a shove
+              // may spin them, but only into a facing the solver approves -
+              // a push can never rotate the puzzle into a dead end.
               nextPenguins = nextPenguins.map(p => {
-                const isNeighbor = Math.abs(p.x - emptyPos.x) + Math.abs(p.y - emptyPos.y) === 1;
+                const isNeighbor = Math.abs(p.x - placement.pos.x) + Math.abs(p.y - placement.pos.y) === 1;
                 if (isNeighbor && !p.isFalling && Math.random() < 0.5) {
-                  pushedIds.add(p.id);
-                  return { ...p, isPushed: true, direction: getRandomDirection() };
+                  return { ...p, isPushed: true };
                 }
                 return p;
               });
               nextPenguins.push({
                 id: uuidv4(),
-                x: emptyPos.x,
-                y: emptyPos.y,
-                direction: getSpawnDirection(emptyPos, prev.floor),
+                x: placement.pos.x,
+                y: placement.pos.y,
+                direction: placement.direction,
                 type: getRandomPenguinType(),
                 isEntering: true,
                 appearanceVariant: Math.floor(Math.random() * 4)
               });
               added = true;
           }
+          // placement === null: no spot keeps the board solvable this floor,
+          // so the doors simply let nobody on (never observed in simulation,
+          // but handled gracefully).
       }
 
       if (added) audioManager.playEnter();
-      return { ...prev, penguins: nextPenguins };
+      // Leaving a full state resets the make-room countdown
+      const overloadCountdown = nextPenguins.length >= MAX_CAPACITY ? prev.overloadCountdown : null;
+      return { ...prev, penguins: nextPenguins, overloadCountdown };
     });
 
     // Clear the one-shot boarding animation flags once they have played
@@ -309,14 +328,40 @@ function App() {
         return { ...prev, elevatorState: 'MOVING' };
     });
 
+    // TELEGRAPHED ROTATION: the turn is computed early (solver-verified so
+    // it can never break clearability), the affected penguins show a wind-up
+    // arrow for ROTATION_TELEGRAPH_MS, and only then do facings flip. No
+    // more silent mid-ride spins deciding a drop you already committed to.
     schedule(() => {
       setGameState(prev => {
         if (prev.phase !== 'PLAYING') return prev;
-        // Every level the flock shuffles - at least one penguin always turns
+        const rotated = smartRotatePenguins(prev.penguins, prev.floor);
+        rotationPlanRef.current = rotated;
+        const turningIds = new Set(
+          rotated.filter((p, i) => p.direction !== prev.penguins[i]?.direction).map(p => p.id)
+        );
         return {
           ...prev,
-          penguins: rotateAllPenguins(prev.penguins, prev.floor)
+          penguins: prev.penguins.map(p => ({ ...p, isTurning: turningIds.has(p.id) }))
         };
+      });
+    }, Math.max(0, rotationEventTime - ROTATION_TELEGRAPH_MS));
+
+    schedule(() => {
+      setGameState(prev => {
+        if (prev.phase !== 'PLAYING' || !rotationPlanRef.current) return prev;
+        // Apply the planned facings to the penguins that still exist
+        // (some may have been dropped during the telegraph)
+        const planned = new Map(rotationPlanRef.current.map(p => [p.id, p.direction]));
+        rotationPlanRef.current = null;
+        const next = prev.penguins.map(p => ({
+          ...p,
+          direction: p.isFalling ? p.direction : (planned.get(p.id) ?? p.direction),
+          isTurning: false,
+        }));
+        // A drop during the telegraph can invalidate the plan - keep the old
+        // facings in that case rather than apply an unverified board
+        return { ...prev, penguins: isClearable(next) ? next : prev.penguins.map(p => ({ ...p, isTurning: false })) };
       });
     }, rotationEventTime);
 
@@ -610,6 +655,7 @@ function App() {
                 isFishActive={!!(gameState.fishTreat && gameState.fishTreat.active)}
                 onUseFish={placeFishAuto}
                 elevatorState={gameState.elevatorState}
+                overloadCountdown={gameState.overloadCountdown}
               />
             </motion.div>
           )}

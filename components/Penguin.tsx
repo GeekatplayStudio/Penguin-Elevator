@@ -194,6 +194,21 @@ const PenguinInner: React.FC<PenguinProps> = ({
               </div>
             )}
 
+            {/* TURN TELEGRAPH - this penguin is about to rotate. Shown for
+                ROTATION_TELEGRAPH_MS before the facing flips, so a committed
+                tap is never invalidated by a silent spin. */}
+            {penguin.isTurning && !penguin.isPanic && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1, rotate: [0, 30, 0] }}
+                transition={{ rotate: { repeat: Infinity, duration: 0.4 } }}
+                className="absolute -top-9 z-30 w-6 h-6 rounded-full bg-[#fbbf3c] border-2 border-[#d97b12] shadow-lg flex items-center justify-center font-pixel font-bold text-[13px] text-[#232a4a]"
+                title="About to turn"
+              >
+                &#8635;
+              </motion.div>
+            )}
+
             {penguin.type === 'SLEEPY' && !penguin.isPanic && (
               <motion.div
                 animate={{ y: [-2, -8, -2], opacity: [0.6, 1, 0.6] }}
@@ -278,6 +293,7 @@ export const Penguin = React.memo(PenguinInner, (a, b) => {
     p1.isDizzy === p2.isDizzy &&
     p1.isPushed === p2.isPushed &&
     p1.isEntering === p2.isEntering &&
+    p1.isTurning === p2.isTurning &&
     p1.isDistracted === p2.isDistracted &&
     p1.distractionDir === p2.distractionDir &&
     a.isHovered === b.isHovered &&

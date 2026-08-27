@@ -16,6 +16,7 @@ export interface Penguin {
   isEntering?: boolean;   // Just boarded - plays waddle-in animation
   isPushed?: boolean;     // Got shoved by a boarding penguin - quick nudge + spin
   isDizzy?: boolean;      // Pre-drop wobble before falling through trapdoor
+  isTurning?: boolean;    // Wind-up telegraph: this penguin rotates in a moment
   appearanceVariant: number; // Visual accessory or color
 }
 
@@ -55,6 +56,7 @@ export interface GameState {
   combo: number;
   fishTreat: FishTreat | null;
   fishCount: number; // Fish inventory - earn 1 every 10 floors, place on empty tile
+  overloadCountdown: number | null; // Floors left to make room while the elevator is full
   showVisionCones: boolean;
   isMuted: boolean;
   isPaused: boolean;
