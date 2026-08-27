@@ -28,6 +28,22 @@ export const getGridPos = (x: number, y: number) => ({
 const BOARD_W = GRID_SIZE * TILE_W;
 const BOARD_H = GRID_SIZE * TILE_H + TILE_LIP;
 
+// The navy base slab the checkerboard sits on. The rim is the SAME on all
+// four sides so the board is actually centred on its platform - an earlier
+// version padded the bottom by 22 against 18 everywhere else, which read as
+// the checkerboard sitting too high with a gap underneath.
+const PLATFORM_RIM = 18;
+const PLATFORM_W = BOARD_W + PLATFORM_RIM * 2;
+const PLATFORM_H = BOARD_H + PLATFORM_RIM * 2;
+
+// Voxel texture on the slab. The cell size is derived so a WHOLE number of
+// cells spans the slab in each axis: a fixed 18px cell left a clipped half
+// cell along the bottom and right edges, so the little grid looked shifted
+// and cut off exactly where the rim is visible.
+const VOXEL_TARGET = 18;
+const VOXEL_W = PLATFORM_W / Math.round(PLATFORM_W / VOXEL_TARGET);
+const VOXEL_H = PLATFORM_H / Math.round(PLATFORM_H / VOXEL_TARGET);
+
 /* ------------------------------------------------------------------ *
  * RENDERING ARCHITECTURE (WebView performance)
  *
@@ -46,6 +62,33 @@ const BOARD_H = GRID_SIZE * TILE_H + TILE_LIP;
  *   3. Actor layer  - penguins, fish, floating scores. Re-renders
  *                     follow gameplay, never touch layers 1-2.
  * ------------------------------------------------------------------ */
+
+/** Layer 0: the navy slab under the board. Static - painted once. */
+const BasePlatform = React.memo(() => (
+  <div
+    className="absolute rounded-lg pointer-events-none overflow-hidden"
+    style={{
+      left: -PLATFORM_RIM,
+      top: -PLATFORM_RIM,
+      width: PLATFORM_W,
+      height: PLATFORM_H,
+      background: '#24406b',
+      boxShadow: `0 26px 40px rgba(0,0,0,0.75), inset 0 -${PLATFORM_RIM}px 0 #16294a, inset 0 2px 0 #2d4d80`,
+    }}
+  >
+    {/* Texture sits ABOVE the inset shading, so the voxel grid carries across
+        the slab's darker front face instead of stopping short of the bottom. */}
+    <div
+      className="absolute inset-0"
+      style={{
+        backgroundImage:
+          'linear-gradient(to right, rgba(20,35,66,0.55) 1px, transparent 1px), linear-gradient(to bottom, rgba(20,35,66,0.55) 1px, transparent 1px)',
+        backgroundSize: `${VOXEL_W}px ${VOXEL_H}px`,
+      }}
+    />
+  </div>
+));
+BasePlatform.displayName = 'BasePlatform';
 
 /** Layer 1: the whole checkerboard painted once. */
 const StaticBoard = React.memo(() => {
@@ -210,20 +253,8 @@ export const Grid: React.FC<GridProps> = ({
         }
         transition={gameState.witnessIds.length > 0 ? { duration: 0.5 } : { repeat: Infinity, duration: 0.12 }}
       >
-        {/* NAVY VOXEL BASE PLATFORM - a rectangular rim of navy cubes under the checkerboard */}
-        <div
-          className="absolute rounded-lg pointer-events-none"
-          style={{
-            left: -18,
-            top: -18,
-            width: BOARD_W + 36,
-            height: BOARD_H + 40,
-            background: '#24406b',
-            boxShadow: '0 26px 40px rgba(0,0,0,0.75), inset 0 -22px 0 #16294a, inset 0 2px 0 #2d4d80',
-            backgroundImage:
-              'repeating-linear-gradient(0deg, transparent 0px, transparent 17px, rgba(20,35,66,0.55) 17px, rgba(20,35,66,0.55) 18px), repeating-linear-gradient(90deg, transparent 0px, transparent 17px, rgba(20,35,66,0.55) 17px, rgba(20,35,66,0.55) 18px)',
-          }}
-        />
+        {/* LAYER 0: navy voxel slab under the checkerboard */}
+        <BasePlatform />
 
         {/* LAYER 1: static checkerboard, painted once */}
         <StaticBoard />
