@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   <div className="absolute top-0 left-0 w-full p-3 flex flex-col gap-2 z-30 pointer-events-none">
    <div className="w-full flex justify-between items-start gap-2">
     {/* LEFT HUD: TITLE & FLOOR */}
-    <div className="flex flex-col gap-2 pointer-events-auto">
+    <div className="flex flex-col gap-2 pointer-events-auto min-w-0">
       <div className="flex items-center gap-2 bg-[#1d3358] px-4 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg">
         <motion.div
           className="filter drop-shadow-md"
@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      <div className="bg-[#1d3358] px-3 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg flex items-center gap-2.5">
+      <div className="bg-[#1d3358] px-3 py-2 rounded-2xl border-b-4 border-[#12213c] shadow-lg flex items-center flex-wrap gap-2.5 min-w-0">
         <div>
           <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider whitespace-nowrap">Floor</div>
           <motion.div
@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
     </div>
     
     {/* RIGHT HUD: SCORE & QUICK TOGGLES */}
-    <div className="flex flex-col items-end gap-2 pointer-events-auto">
+    <div className="flex flex-col items-end gap-2 pointer-events-auto shrink-0">
       {/* SCORE BADGE */}
       <div className="bg-[#1d3358] px-5 py-2.5 rounded-2xl border-b-4 border-[#12213c] shadow-lg text-right">
          <div className="text-[8px] uppercase font-pixel text-[#8fa2c0] leading-none mb-1.5 tracking-wider">Score</div>
