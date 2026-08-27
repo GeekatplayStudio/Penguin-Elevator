@@ -35,7 +35,7 @@ interface HeaderProps {
   onToggleViewMode: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+const HeaderInner: React.FC<HeaderProps> = ({
   floor,
   score,
   combo,
@@ -215,49 +215,64 @@ interface MobileControlsProps {
   elevatorState: string;
 }
 
-export const MobileControls: React.FC<MobileControlsProps> = ({
+const MobileControlsInner: React.FC<MobileControlsProps> = ({
   fishCount,
   isFishActive,
   onUseFish,
   elevatorState
 }) => (
   <div className="absolute bottom-3 left-0 right-0 px-3 flex flex-col items-center gap-3 z-30 pointer-events-none">
-    {/* STATUS BADGE */}
-    {elevatorState === 'BOARDING' && (
-      <motion.div
-        className="bg-[#efece2] text-[#232a4a] font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 border-[#c3bfb2] shadow-lg rounded-xl pointer-events-auto tracking-wide"
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ repeat: Infinity, duration: 0.6 }}
-      >
-        PASSENGERS ENTERING
-      </motion.div>
-    )}
-    {elevatorState === 'MOVING' && (
-      <motion.div
-        className="bg-[#24406b] text-[#efece2] font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 border-[#3d5a8c] shadow-lg rounded-xl pointer-events-auto tracking-wide"
-        animate={{ y: [0, -4, 0] }}
-        transition={{ repeat: Infinity, duration: 0.5 }}
-      >
-        ELEVATOR ASCENDING
-      </motion.div>
-    )}
+    {/* STATUS BADGE - lives in a fixed-height slot that is ALWAYS rendered.
+        Mounting and unmounting it between elevator phases used to relayout
+        this whole flex column, shoving the fish button up and down - which
+        reads as both of them flashing on and off. The slot never changes
+        size now; only the badge inside it swaps.
+
+        The pulse is a translate, never a scale: animating scale on a text
+        element makes Android's WebView re-rasterize the glyph layer every
+        frame, which is the flicker itself. */}
+    <div className="h-[30px] flex items-center justify-center">
+      {(elevatorState === 'BOARDING' || elevatorState === 'MOVING') && (
+        <motion.div
+          key={elevatorState}
+          className={`font-pixel font-bold px-4 py-2 text-[10px] uppercase border-2 shadow-lg rounded-xl pointer-events-auto tracking-wide whitespace-nowrap ${
+            elevatorState === 'BOARDING'
+              ? 'bg-[#efece2] text-[#232a4a] border-[#c3bfb2]'
+              : 'bg-[#24406b] text-[#efece2] border-[#3d5a8c]'
+          }`}
+          style={{ willChange: 'transform' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, y: [0, -3, 0] }}
+          transition={{
+            opacity: { duration: 0.15 },
+            y: { repeat: Infinity, duration: elevatorState === 'BOARDING' ? 0.6 : 0.5 },
+          }}
+        >
+          {elevatorState === 'BOARDING' ? 'PASSENGERS ENTERING' : 'ELEVATOR ASCENDING'}
+        </motion.div>
+      )}
+    </div>
 
     {/* FISH TREAT DISTRACTION BUTTON */}
     <div className="pointer-events-auto flex items-center gap-3">
       <motion.button
         onClick={onUseFish}
         disabled={fishCount < 1 || isFishActive}
-        className={`relative px-7 py-3 font-pixel text-sm flex items-center justify-center gap-2.5 border-b-4 rounded-2xl font-bold uppercase tracking-wide transition-all ${
+        // `transition-colors`, not `transition-all`: transition-all also
+        // animates layout and shadow properties on every class change.
+        // whileHover is gone - on touch, pointerenter fires on tap and the
+        // hover scale sticks, fighting the tap animation.
+        className={`relative px-7 py-3 font-pixel text-sm flex items-center justify-center gap-2.5 border-b-4 rounded-2xl font-bold uppercase tracking-wide transition-colors duration-150 ${
           isFishActive
             ? 'bg-[#fbbf3c] text-[#232a4a] border-[#d97b12] shadow-lg'
             : fishCount >= 1
-              ? 'bg-[#f2901f] hover:bg-[#fbbf3c] text-[#232a4a] border-[#d97b12] shadow-lg'
+              ? 'bg-[#f2901f] text-[#232a4a] border-[#d97b12] shadow-lg'
               : 'bg-[#2c3a61] text-[#6b7aa0] cursor-not-allowed border-[#1d2b4d]'
         }`}
-        whileHover={fishCount >= 1 && !isFishActive ? { scale: 1.05 } : {}}
-        whileTap={fishCount >= 1 && !isFishActive ? { scale: 0.95 } : {}}
-        animate={isFishActive ? { rotate: [0, 6, -6, 0] } : {}}
-        transition={isFishActive ? { repeat: Infinity, duration: 0.4 } : {}}
+        style={{ willChange: isFishActive ? 'transform' : undefined }}
+        whileTap={fishCount >= 1 && !isFishActive ? { scale: 0.95 } : undefined}
+        animate={isFishActive ? { rotate: [0, 6, -6, 0] } : { rotate: 0 }}
+        transition={isFishActive ? { repeat: Infinity, duration: 0.4 } : { duration: 0.2 }}
       >
         {/* Voxel fish icon, drawn in the same cube style as the penguins */}
         <svg viewBox="0 0 12 8" className="w-7 h-5 relative z-10">
@@ -645,3 +660,27 @@ export const MobileSimulatorFrame: React.FC<{ children: React.ReactNode; isEnabl
   );
 };
 
+/* ------------------------------------------------------------------ *
+ * The HUD sits above a board that changes state many times a second.
+ * Both of these are memoized on the values they actually display, with
+ * callback props deliberately excluded - App recreates those every
+ * render, so comparing them would defeat the memo entirely and let
+ * every penguin move repaint the status badge and the fish button.
+ * ------------------------------------------------------------------ */
+
+export const Header = React.memo(HeaderInner, (a, b) =>
+  a.floor === b.floor &&
+  a.score === b.score &&
+  a.combo === b.combo &&
+  a.isMuted === b.isMuted &&
+  a.isPaused === b.isPaused &&
+  a.elevatorState === b.elevatorState &&
+  a.showVisionCones === b.showVisionCones &&
+  a.viewMode === b.viewMode
+);
+
+export const MobileControls = React.memo(MobileControlsInner, (a, b) =>
+  a.fishCount === b.fishCount &&
+  a.isFishActive === b.isFishActive &&
+  a.elevatorState === b.elevatorState
+);
