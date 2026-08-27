@@ -1,0 +1,16 @@
+# Copy this file to android/key.properties and fill in real values.
+# key.properties, *.keystore and *.jks are gitignored - never commit them.
+#
+# Create the keystore first (one time, then back it up forever):
+#
+#   keytool -genkey -v \
+#     -keystore penguin-elevator-release.keystore \
+#     -alias penguin-elevator \
+#     -keyalg RSA -keysize 2048 -validity 10000
+#
+# storeFile is resolved relative to the android/ directory.
+
+storeFile=penguin-elevator-release.keystore
+storePassword=CHANGE_ME
+keyAlias=penguin-elevator
+keyPassword=CHANGE_ME

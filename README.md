@@ -48,10 +48,22 @@ Guide crowded passengers through trapdoors in an ascending 3D voxel elevator whi
 **Penguin Elevator** converts to native iOS and Android apps with
 **Capacitor**, which wraps the existing `dist/` build in a native shell.
 
-**→ Full step-by-step runbook: [MOBILE_BUILD.md](MOBILE_BUILD.md)**
+Build a signed Android release in one command:
 
-It covers store accounts and tooling, the prep work below, Capacitor setup,
-icons and splash screens, signing, and both store submissions.
+```bash
+npm run android:bundle    # signed .aab for Google Play
+npm run android:apk       # signed .apk for sideloading
+npm run android:debug     # debug .apk, no signing needed
+```
+
+The script preflights the JDK, SDK, signing keys and version code before it
+hands off to Gradle. Signing credentials go in `android/key.properties` —
+copy [android/key.properties.example](android/key.properties.example) and fill
+it in. That file, and any `*.keystore` / `*.jks`, are gitignored and must
+never be committed.
+
+> Requires **JDK 21** (Capacitor 8 compiles the Android module at source
+> level 21) and the Android SDK. iOS builds require a Mac with Xcode.
 
 > **✅ The build is already self-contained.** Tailwind compiles at build time
 > and the Press Start 2P / Silkscreen fonts are bundled locally, so the game
@@ -133,9 +145,8 @@ Both the App Store privacy label and Google Play Data Safety should be filled
 in as **"Data Not Collected"** in every category.
 
 If you ever add a leaderboard, ads, crash reporting, or cloud saves, update
-[privacy-policy.md](privacy-policy.md), the privacy section of
-[MOBILE_BUILD.md](MOBILE_BUILD.md), and the store privacy answers together
-before shipping.
+[privacy-policy.md](privacy-policy.md) and the store privacy answers
+together before shipping.
 
 ---
 

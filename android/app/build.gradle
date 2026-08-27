@@ -1,5 +1,26 @@
 apply plugin: 'com.android.application'
 
+// Release signing credentials live in android/key.properties, which is
+// gitignored. Copy key.properties.example and fill it in, or set the same four
+// values as environment variables (PE_STORE_FILE, PE_STORE_PASSWORD,
+// PE_KEY_ALIAS, PE_KEY_PASSWORD) for CI. Without either, release builds fall
+// back to unsigned output and Play will reject the bundle.
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def resolveSigning = { String propKey, String envKey ->
+    return keystoreProperties.getProperty(propKey) ?: System.getenv(envKey)
+}
+
+def storeFileValue = resolveSigning('storeFile', 'PE_STORE_FILE')
+def storePasswordValue = resolveSigning('storePassword', 'PE_STORE_PASSWORD')
+def keyAliasValue = resolveSigning('keyAlias', 'PE_KEY_ALIAS')
+def keyPasswordValue = resolveSigning('keyPassword', 'PE_KEY_PASSWORD')
+def hasReleaseSigning = storeFileValue && storePasswordValue && keyAliasValue && keyPasswordValue
+
 android {
     namespace = "com.geekatplay.penguinelevator"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +37,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(storeFileValue)
+                storePassword storePasswordValue
+                keyAlias keyAliasValue
+                keyPassword keyPasswordValue
+            }
+        }
+    }
     buildTypes {
         release {
+            // Capacitor's WebView bridge resolves plugin classes reflectively,
+            // so shrinking is left off - the payload is the web bundle anyway.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("WARNING: no release signing config found - the release build will be UNSIGNED and Play will reject it. See android/key.properties.example.")
+            }
         }
     }
 }

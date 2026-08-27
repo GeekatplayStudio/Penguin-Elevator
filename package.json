@@ -15,7 +15,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "android": "npm run build && npx cap sync android && npx cap open android",
-    "ios": "npm run build && npx cap sync ios && npx cap open ios"
+    "ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "android:debug": "node scripts/release-android.mjs --debug",
+    "android:apk": "node scripts/release-android.mjs --apk",
+    "android:bundle": "node scripts/release-android.mjs",
+    "android:clean": "node scripts/gradle.mjs clean",
+    "android:install": "node scripts/gradle.mjs installDebug"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
