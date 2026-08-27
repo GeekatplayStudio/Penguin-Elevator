@@ -40,7 +40,11 @@ android {
     signingConfigs {
         if (hasReleaseSigning) {
             release {
-                storeFile file(storeFileValue)
+                // storeFileValue is documented (key.properties.example) as
+                // relative to android/, not android/app/ - resolve against
+                // rootProject so `file()`'s app/-relative default doesn't
+                // silently look in the wrong directory.
+                storeFile rootProject.file(storeFileValue)
                 storePassword storePasswordValue
                 keyAlias keyAliasValue
                 keyPassword keyPasswordValue
