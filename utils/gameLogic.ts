@@ -21,18 +21,23 @@ const OPPOSITE_DIRECTION: Record<Direction, Direction> = {
 const ALL_DIRECTIONS: Direction[] = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 /**
- * TRUE FORWARD CONE: a penguin sees only what is in front of it - 3 tiles
- * straight ahead and 2 along each forward diagonal. Sides and everything
- * behind are blind. (The old spec also watched the sides at range 2 and the
- * diagonals at range 3; an exact-solver study showed that cone is too large
- * for a 4x4 board - 0% of boards at any fill level were fully clearable and
- * most mid-game boards had zero legal drops. The forward cone makes every
- * board solvable when paired with the generator in utils/solver.ts, and it
- * matches what the sprite's face is actually pointing at.)
+ * VISION: a forward cone plus immediate peripheral awareness.
+ *   - 3 tiles straight ahead
+ *   - 2 along each forward diagonal
+ *   - 1 directly to each side: you notice someone dropped RIGHT BESIDE you
+ *   - nothing behind (back and back-diagonals blind)
+ *
+ * The side range is exactly 1 and must stay 1: an earlier spec with sides
+ * at range 2 made the 4x4 board mathematically unsolvable (0% of boards
+ * clearable at any fill), and a distance-1 side watch cannot be blocked -
+ * so every side tile added multiplies the constraint density. At 1 it
+ * matches intuition ("I'd notice my neighbor vanish") while the solver
+ * keeps every generated board clearable.
  */
 export const VISION_RANGE = {
   FORWARD: 3,
   FORWARD_DIAGONAL: 2,
+  SIDE: 1,
   BACK: 0,
 } as const;
 
@@ -46,8 +51,9 @@ export interface VisionRay {
 }
 
 /**
- * The 3 rays a penguin watches given its facing: forward (3) and both
- * forward diagonals (2). Sides, back, and back diagonals see nothing.
+ * The 5 rays a penguin watches given its facing: forward (3), both forward
+ * diagonals (2), and each immediate side neighbor (1). Back and back
+ * diagonals see nothing.
  */
 export const getVisionRays = (facingDir: Direction): VisionRay[] => {
   const f = getVector(facingDir);              // forward unit vector
@@ -56,6 +62,8 @@ export const getVisionRays = (facingDir: Direction): VisionRay[] => {
     { dx: f.x, dy: f.y, range: VISION_RANGE.FORWARD },
     { dx: f.x + r.x, dy: f.y + r.y, range: VISION_RANGE.FORWARD_DIAGONAL },
     { dx: f.x - r.x, dy: f.y - r.y, range: VISION_RANGE.FORWARD_DIAGONAL },
+    { dx: r.x, dy: r.y, range: VISION_RANGE.SIDE },
+    { dx: -r.x, dy: -r.y, range: VISION_RANGE.SIDE },
   ];
 };
 

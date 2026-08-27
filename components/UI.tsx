@@ -491,18 +491,19 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
   },
   {
     title: 'PENGUIN VISION',
-    caption: <>A penguin sees only what's <strong className="text-[#e2483d]">in FRONT of it</strong> - 3 tiles ahead, 2 diagonally forward. <strong className="text-[#4ade80]">Sides and behind are blind.</strong> Sneak around!</>,
+    caption: <>A penguin sees <strong className="text-[#e2483d]">3 ahead, 2 diagonally forward, and right BESIDE itself</strong>. <strong className="text-[#4ade80]">Two tiles to the side - or anywhere behind - it's blind.</strong></>,
     diagram: (
       <svg viewBox={`-6 -18 ${MT * 5 + 12} ${MT * 5 + 24}`} className="w-full h-full">
         {Array.from({ length: 5 }).map((_, y) => Array.from({ length: 5 }).map((_, x) => {
           let tint: 'danger' | 'side' | 'safe' | undefined;
           if (x === 2 && y > 1) tint = 'danger';                            // 3 straight ahead (facing down)
           else if (y - 1 === Math.abs(x - 2) && y > 1 && y <= 3) tint = 'danger'; // forward diagonals, 2 steps
-          else if (y <= 1) tint = 'safe';                                   // sides, behind, back diagonals: blind
+          else if (y === 1 && (x === 1 || x === 3)) tint = 'danger';        // immediate side neighbors
+          else if (y === 0 || (y === 1 && (x === 0 || x === 4))) tint = 'safe'; // behind + far sides: blind
           return <MiniTile key={`${x}-${y}`} x={x} y={y} tint={tint} />;
         }))}
         <MiniPenguin x={2} y={1} sprite="front" />
-        {[0, 1, 3, 4].map(x => (
+        {[0, 4].map(x => (
           <text key={x} x={x * MT + MT / 2} y={1.5 * MT + 4} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#166534">&#10003;</text>
         ))}
       </svg>

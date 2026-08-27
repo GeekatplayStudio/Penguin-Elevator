@@ -29,7 +29,7 @@ Guide crowded passengers through trapdoors in an ascending 3D voxel elevator whi
 ### 🌟 Key Features
 
 * **3D Voxel Directional Sprites**: High-resolution 3D voxel turnaround sprites (Front, Left, Right, Back).
-* **Forward Vision Cone**: Penguins see only what's **in front of them** — 3 tiles straight ahead and 2 along each forward diagonal. Sides and everything behind are **completely blind**. What the sprite's face points at is exactly what it sees.
+* **Forward Vision Cone + Peripheral Awareness**: Penguins see **3 tiles straight ahead, 2 along each forward diagonal, and the single tile directly beside them** — drop someone right next to a penguin and it notices. Two tiles to the side, or anywhere behind, is **completely blind**.
 * **Line of Sight Blocking**: A penguin standing in the way blocks the view behind it on *every* ray, diagonals included — so you can drop right in front of a watcher if a bystander is screening you.
 * **Every Board Is Solvable**: An exact solver runs on every boarding and rotation — placements and turns are only accepted if the whole floor can still be cleared. Even a completely full elevator always has an escape order (verified across thousands of simulated floors). Full is no longer instant game over: you get a short **MAKE ROOM** countdown to dig yourself out.
 * **Telegraphed Turns**: A penguin about to rotate shows a wind-up arrow first — no silent mid-ride spins invalidating a drop you already committed to.

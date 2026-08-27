@@ -290,8 +290,33 @@ function App() {
       }
 
       if (added) audioManager.playEnter();
-      // Leaving a full state resets the make-room countdown
-      const overloadCountdown = nextPenguins.length >= MAX_CAPACITY ? prev.overloadCountdown : null;
+      // OVERLOAD: with side-1 vision a literal 16/16 fill is rarely
+      // reachable - "full" now means the solver could not seat the newcomer
+      // anywhere without making the board unsolvable. Each such deferred
+      // boarding at a crowded fill ticks the make-room countdown; a
+      // successful boarding (or a thinned-out floor) resets it.
+      let overloadCountdown = prev.overloadCountdown;
+      const wantedToBoard = numToAdd > 0;
+      const crowded = nextPenguins.length >= 10;
+      if (wantedToBoard && !added && crowded) {
+        overloadCountdown = (overloadCountdown ?? OVERLOAD_GRACE_FLOORS + 1) - 1;
+        audioManager.playPanic();
+      } else if (added || !crowded) {
+        overloadCountdown = null;
+      }
+      if (overloadCountdown !== null && overloadCountdown <= 0) {
+        gameOver = true;
+        audioManager.stopMusic();
+        const { newHigh, newBestFloor } = saveRecords(prev.score, prev.floor, prev.highScore, prev.bestFloor);
+        return {
+          ...prev,
+          penguins: nextPenguins,
+          phase: 'GAME_OVER',
+          gameOverReason: 'BANKRUPT',
+          highScore: newHigh,
+          bestFloor: newBestFloor
+        };
+      }
       return { ...prev, penguins: nextPenguins, overloadCountdown };
     });
 
