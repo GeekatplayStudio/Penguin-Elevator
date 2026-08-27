@@ -40,6 +40,17 @@ function App() {
 
   const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
 
+  // THE STALE-CLOSURE GUARD. Header, MobileControls, and Penguin are all
+  // memoized with callback props excluded from their comparators (that memo
+  // is what fixed the Android repaint flashing). The cost: a memoized child
+  // can hold an OLD callback closure. This bit players for real - drop
+  // penguin A, then quickly drop B whose visuals had not changed: B's cached
+  // onClick still saw the board WITH A standing, and the already-dropped A
+  // "witnessed" the second drop. Every handler a memoized child captures
+  // must read live state through this ref, never through its closure.
+  const stateRef = useRef(gameState);
+  stateRef.current = gameState;
+
   // Memoized: a fresh Set identity every render would defeat the tile
   // overlays' React.memo and re-render all 16 tiles on every state change.
   const monitoredCells = useMemo(
@@ -423,7 +434,7 @@ function App() {
         timerRef.current = schedule(() => {
           setGameState(prev => prev.phase !== 'PLAYING' ? prev : { ...prev, elevatorState: 'CLOSING' });
           schedule(() => handleMoving(), TIMING.DOOR_ANIMATION);
-        }, getBoardingTime(gameState.floor));
+        }, getBoardingTime(stateRef.current.floor));
         break;
       case 'CLOSING':
         schedule(() => handleMoving(), TIMING.DOOR_ANIMATION);
@@ -435,29 +446,33 @@ function App() {
   };
 
   const togglePause = () => {
-    if (gameState.phase !== 'PLAYING') return;
-    if (!gameState.isPaused) {
+    const st = stateRef.current; // fresh even from a memoized Header's cached callback
+    if (st.phase !== 'PLAYING') return;
+    if (!st.isPaused) {
       clearCycleTimers();
       audioManager.pauseMusic();
       setGameState(prev => ({ ...prev, isPaused: true }));
     } else {
       audioManager.resumeMusic();
       setGameState(prev => ({ ...prev, isPaused: false }));
-      resumeCycle(gameState.elevatorState);
+      resumeCycle(st.elevatorState);
     }
   };
 
-  // Places a fish on a random empty tile (for the quick-use button / F key)
+  // Places a fish on a random empty tile (for the quick-use button / F key).
+  // Reads through stateRef: the fish button lives in the memoized
+  // MobileControls, whose cached callback would otherwise see a stale board.
   const placeFishAuto = () => {
-    const empty = findEmptyCell(gameState.penguins.filter(p => !p.isFalling));
+    const empty = findEmptyCell(stateRef.current.penguins.filter(p => !p.isFalling));
     if (empty) triggerFishTreat(empty.x, empty.y);
   };
 
   const triggerFishTreat = (x: number = 1, y: number = 1) => {
-    if (gameState.isPaused) return;
-    if (gameState.fishCount < 1 || (gameState.fishTreat && gameState.fishTreat.active)) return;
+    const st = stateRef.current;
+    if (st.isPaused) return;
+    if (st.fishCount < 1 || (st.fishTreat && st.fishTreat.active)) return;
     // Fish can only be placed on an empty square
-    if (gameState.penguins.some(p => p.x === x && p.y === y && !p.isFalling)) return;
+    if (st.penguins.some(p => p.x === x && p.y === y && !p.isFalling)) return;
 
     audioManager.playSplash();
     setGameState(prev => ({
@@ -476,14 +491,19 @@ function App() {
   };
 
   const handleDrop = useCallback((id: string) => {
-    if (gameState.phase !== 'PLAYING' || gameState.isPaused) return;
+    // Everything is read through stateRef, never the closure: Penguin
+    // components memo-cache this callback, and the drop-safety check MUST
+    // see the board as it is at tap time - including penguins that are
+    // mid-drop right now - or an already-dropped penguin can "witness" you.
+    const st = stateRef.current;
+    if (st.phase !== 'PLAYING' || st.isPaused) return;
 
     audioManager.playTrapdoor();
 
-    const targetPenguin = gameState.penguins.find(p => p.id === id);
-    if (!targetPenguin) return;
+    const targetPenguin = st.penguins.find(p => p.id === id);
+    if (!targetPenguin || targetPenguin.isDizzy || targetPenguin.isFalling) return;
 
-    const { safe, witnesses } = checkDropSafety(id, gameState.penguins, gameState.fishTreat);
+    const { safe, witnesses } = checkDropSafety(id, st.penguins, st.fishTreat);
 
     if (safe) {
       audioManager.playDropOooh();
@@ -491,7 +511,7 @@ function App() {
         Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
       }
 
-      const newCombo = gameState.combo + 1;
+      const newCombo = st.combo + 1;
       const basePoints = targetPenguin.type === 'VIP' ? 10 : 5;
       const totalPoints = basePoints * Math.min(newCombo, 4);
 
@@ -561,7 +581,9 @@ function App() {
         });
       }, TIMING.PANIC_DELAY);
     }
-  }, [gameState.penguins, gameState.phase, gameState.fishTreat, gameState.combo, gameState.isPaused]);
+    // Stable identity on purpose: state is read via stateRef above, so a
+    // memoized child holding an old reference still executes fresh logic.
+  }, []);
 
   // Keyboard Shortcuts Handler
   useEffect(() => {
