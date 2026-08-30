@@ -62,7 +62,37 @@ it in. That file, and any `*.keystore` / `*.jks`, are gitignored and must
 never be committed.
 
 > Requires **JDK 21** (Capacitor 8 compiles the Android module at source
-> level 21) and the Android SDK. iOS builds require a Mac with Xcode.
+> level 21) and the Android SDK.
+
+### iOS / App Store
+
+iOS releases must be prepared on **macOS with Xcode 26 or newer** and the
+iOS 26 SDK. From a fresh clone or pull on the Mac:
+
+```bash
+npm ci
+npm run typecheck
+npm run ios       # production build -> sync ios -> open Xcode
+```
+
+The tracked Xcode project is configured for iPhone, iOS 15+, automatic
+signing, dSYM generation, dead-code stripping, and size-optimized Release
+compilation. The current release is Version `2.1`, Build `5`.
+
+In Xcode:
+
+1. Select the `App` target and confirm the correct development team and bundle
+   identifier `com.geekatplay.penguinelevator`.
+2. Confirm **Version 2.1** and **Build 5**. Increase the build number before
+   every new App Store Connect upload.
+3. Select **Any iOS Device (arm64)**, then choose **Product → Archive**.
+4. In Organizer, choose **Validate App** before **Distribute App → App Store
+   Connect → Upload**.
+5. Test the processed build through TestFlight before submitting it for review.
+
+The generated `ios/App/App/public/` directory is intentionally gitignored.
+`npm run ios` rebuilds and synchronizes it from `dist/`, preventing stale web
+assets from entering the archive.
 
 > **✅ The build is already self-contained.** Tailwind compiles at build time
 > and the Press Start 2P / Silkscreen fonts are bundled locally, so the game
@@ -80,10 +110,10 @@ npm run android    # build -> sync android -> open Android Studio
 npm run ios        # build -> sync ios -> open Xcode   (Mac only)
 ```
 
-> **Always scope `cap sync` to one platform.** A bare `npx cap sync` run from
-> Windows rewrites `ios/App/CapApp-SPM/Package.swift` with backslash paths and
-> breaks SwiftPM resolution on the Mac. The npm scripts above already pass the
-> platform; if you call the CLI directly, use `npx cap sync android`.
+> **Run iOS synchronization on the Mac.** Capacitor on Windows rewrites
+> `ios/App/CapApp-SPM/Package.swift` with backslash paths that SwiftPM cannot
+> resolve on macOS. On Windows, use only `npx cap sync android`; on the release
+> Mac, use `npm run ios` or `npx cap sync ios`.
 
 Shipping a release? See **[RELEASING.md](RELEASING.md)**.
 

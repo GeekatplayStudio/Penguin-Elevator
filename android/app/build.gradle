@@ -28,7 +28,7 @@ android {
         applicationId "com.geekatplay.penguinelevator"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
+        versionCode 6
         versionName "2.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -52,11 +52,19 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Install development builds beside the Play Store app without
+            // replacing its differently signed package or deleting user data.
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+        }
         release {
-            // Capacitor's WebView bridge resolves plugin classes reflectively,
-            // so shrinking is left off - the payload is the web bundle anyway.
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Optimize only store releases. Capacitor publishes consumer keep
+            // rules for its reflectively discovered plugins, so R8 can safely
+            // shrink the rest of the native dependency graph.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasReleaseSigning) {
                 signingConfig signingConfigs.release
             } else {

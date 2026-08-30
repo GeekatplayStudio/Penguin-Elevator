@@ -1,6 +1,6 @@
 # Releasing Penguin Elevator
 
-Current release: **2.1** — Android `versionCode 3`, iOS build `4`.
+Current release: **2.1** — Android `versionCode 6`, iOS build `5`.
 
 ## Versioning
 
@@ -48,17 +48,22 @@ adb install -r android/app/build/outputs/apk/release/app-release.apk
 
 ## iOS → App Store
 
-Requires a Mac with Xcode. From a fresh `git pull`:
+Requires macOS with Xcode 26 or newer and the iOS 26 SDK. From a fresh
+`git pull` on the Mac:
 
 ```bash
-npm install && npm run ios
+npm ci
+npm run typecheck
+npm run ios
 ```
 
 In Xcode: select **Any iOS Device (arm64)** as the destination, then
-*Product → Archive*, then *Distribute App → App Store Connect → Upload*.
+*Product → Archive*. In Organizer, run *Validate App* before
+*Distribute App → App Store Connect → Upload*, then test the processed build
+through TestFlight.
 
 Confirm before archiving that the **General** tab shows Version `2.1` and Build
-`4`. If App Store Connect still shows an older version after upload, the archive
+`5`. If App Store Connect still shows an older version after upload, the archive
 was built from stale settings — clean the build folder and re-archive.
 
 ## Store privacy answers

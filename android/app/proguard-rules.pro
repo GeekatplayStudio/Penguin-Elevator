@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep useful source/line metadata so release crash traces can be retraced
+# with android/app/build/outputs/mapping/release/mapping.txt.
+-keepattributes SourceFile,LineNumberTable
